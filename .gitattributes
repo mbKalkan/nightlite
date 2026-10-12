@@ -1,0 +1,18 @@
+* text=auto eol=lf
+
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+*.db binary
+*.sqlite binary
+*.sqlite3 binary
+*.db3 binary
+*.mbtiles binary
+*.gpkg binary
+*.pbf binary
+*.png binary
+*.jpg binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.woff2 binary

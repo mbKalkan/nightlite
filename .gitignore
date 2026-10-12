@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+out/
+*.vsix
+
+# Test artifacts
+.vscode-test/
+coverage/
+test-results/
+playwright-report/
+test/fixtures/private/
+test/fixtures/generated/
+
+# SQLite side files (a viewer never creates them, but test runs might)
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+
+# Logs & OS files
+*.log
+.DS_Store
+Thumbs.db
