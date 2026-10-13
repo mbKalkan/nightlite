@@ -3,6 +3,7 @@ import type {
   FullCell,
   HostToWebviewMessage,
   MbtilesSummary,
+  ObjectDetails,
   ObjectInfo,
   RowPage,
   WebviewToHostMessage,
@@ -19,6 +20,7 @@ export interface DatabaseBackend {
   count(name: string): Promise<number>;
   copy(name: string, range: CopyRange): Promise<CopiedText>;
   cell(name: string, row: number, total: number, column: number, rowid?: string): Promise<FullCell>;
+  objectDetails(name: string): Promise<ObjectDetails>;
   mbtiles(): Promise<MbtilesSummary>;
   /** Slow on big tilesets; dropped when another count starts. */
   zoomCounts(
@@ -70,6 +72,18 @@ export async function answer(
           type: 'objectError',
           name: message.name,
           request: message.request,
+          ...classifyDatabaseError(error),
+        });
+      }
+      return;
+    case 'objectDetails':
+      try {
+        const details = await backend.objectDetails(message.name);
+        await post({ type: 'objectDetails', name: message.name, details });
+      } catch (error) {
+        await post({
+          type: 'objectDetailsError',
+          name: message.name,
           ...classifyDatabaseError(error),
         });
       }

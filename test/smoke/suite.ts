@@ -55,6 +55,9 @@ const tests: Record<string, () => Promise<void>> = {
       await client.open(path.join(FIXTURES, 'sample.sqlite'));
       const names = (await client.schema()).map((object) => object.name);
       assert.ok(names.includes('albums') && names.includes('album_list'), names.join(', '));
+      const details = await client.objectDetails('albums');
+      assert.equal(details.columns?.length, 8);
+      assert.deepEqual(details.foreignKeys?.[0]?.from, ['artist_id']);
     } finally {
       client.dispose();
     }

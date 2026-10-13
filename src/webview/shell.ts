@@ -10,6 +10,7 @@ import type {
 import { DataView } from './dataView';
 import { icons } from './icons';
 import { MbtilesView, countsComplete, type TilesState } from './mbtiles/summary';
+import { detailsSections } from './schemaDetails';
 import { ObjectTree, objectKey, type EntryKey } from './objectTree';
 import { databaseErrorMessage, element, messageView, objectView, overviewView } from './views';
 
@@ -27,6 +28,11 @@ export interface ShellEvents {
   onDetailWidth(width: number): void;
   send(message: WebviewToHostMessage): void;
 }
+
+type DetailsMessage = Extract<
+  HostToWebviewMessage,
+  { type: 'objectDetails' | 'objectDetailsError' }
+>;
 
 type TilesMessage = Extract<
   HostToWebviewMessage,
@@ -54,6 +60,8 @@ export class Shell {
   /** An MBTiles file's summary, kept while other pages are shown. */
   private tiles: TilesState | undefined;
   private summary: MbtilesView | undefined;
+  /** Objects' columns, indexes and foreign keys, by name, as the host sent them. */
+  private details = new Map<string, DetailsMessage>();
   private tab: PageTab;
   private detail: boolean;
   private detailWidth: number | undefined;
@@ -123,6 +131,7 @@ export class Shell {
     const { strings } = this.file;
     this.schemaError = undefined;
     this.objects = new Map(objects.map((object) => [objectKey(object), object]));
+    this.details.clear();
     this.tree = new ObjectTree(objects, strings, (key) => {
       this.show(key);
       this.events.onSelect(key);
@@ -166,6 +175,12 @@ export class Shell {
     if (object) {
       this.tree?.select(objectKey(object), true);
     }
+  }
+
+  /** An object's columns, indexes and foreign keys, for its Schema page. */
+  detailsMessage(message: DetailsMessage): void {
+    this.details.set(message.name, message);
+    this.showDetails(message);
   }
 
   /** The host's answers about an MBTiles file, kept and shown when its summary is. */
@@ -213,7 +228,9 @@ export class Shell {
     const hasRows = object?.type === 'table' || object?.type === 'view';
     this.tabs.hidden = !hasRows;
     this.markTab();
-    this.detailToggle.hidden = !(object && hasRows && this.tab === 'data');
+    // On the Schema tab the toggle keeps its place, so the tabs don't move under the mouse.
+    this.detailToggle.hidden = !hasRows;
+    this.detailToggle.classList.toggle('nl-invisible', this.tab !== 'data');
     if (object && hasRows && this.tab === 'data') {
       this.data = new DataView(
         object.name,
@@ -239,6 +256,12 @@ export class Shell {
     }
     if (object) {
       this.content.replaceChildren(objectView(object, strings));
+      const known = this.details.get(object.name);
+      if (known) {
+        this.showDetails(known);
+      } else if (object.type !== 'trigger') {
+        this.events.send({ type: 'objectDetails', name: object.name });
+      }
       return;
     }
     if (info.format === 'mbtiles' && this.tree && !this.schemaError) {
@@ -263,6 +286,24 @@ export class Shell {
       );
     }
     this.content.replaceChildren(...parts);
+  }
+
+  private showDetails(message: DetailsMessage): void {
+    const strings = this.file?.strings;
+    const shown = this.objects.get(this.shown);
+    const place = this.content.querySelector('.nl-object-details');
+    if (!strings || !place || shown?.name !== message.name) return;
+    if (message.type === 'objectDetails') {
+      place.replaceChildren(...detailsSections(message.details, strings));
+    } else {
+      place.replaceChildren(
+        messageView(
+          strings.detailsErrorTitle,
+          databaseErrorMessage(message.error, strings),
+          message.detail,
+        ),
+      );
+    }
   }
 
   /** Counts tiles by zoom level while the summary is shown, picking up where it stopped. */

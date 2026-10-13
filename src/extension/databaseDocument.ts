@@ -4,6 +4,7 @@ import type {
   DatabaseHeader,
   FullCell,
   MbtilesSummary,
+  ObjectDetails,
   ObjectInfo,
   RowPage,
   SchemaObject,
@@ -73,6 +74,10 @@ export class DatabaseDocument implements vscode.CustomDocument, DatabaseBackend 
       this.counts.set(name, count);
     }
     return count;
+  }
+
+  async objectDetails(name: string): Promise<ObjectDetails> {
+    return (await this.open()).objectDetails(name);
   }
 
   async mbtiles(): Promise<MbtilesSummary> {

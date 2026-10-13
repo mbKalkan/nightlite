@@ -64,6 +64,10 @@ window.addEventListener('message', (event: MessageEvent<HostToWebviewMessage>) =
     case 'cellValue':
       shell.dataMessage(message);
       break;
+    case 'objectDetails':
+    case 'objectDetailsError':
+      shell.detailsMessage(message);
+      break;
     case 'mbtiles':
     case 'mbtilesError':
     case 'zoomRange':

@@ -2,6 +2,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type { Page } from '@playwright/test';
+import { readDetails } from '../../src/extension/database/details';
 import { readMbtiles, zoomCount, zoomRange } from '../../src/extension/database/mbtiles';
 import { TableReader } from '../../src/extension/database/rows';
 import { readSchema } from '../../src/extension/database/schema';
@@ -80,6 +81,7 @@ export async function openViewer(page: Page, theme: ThemeName) {
         copy: async (name, range) => reader(name).copy(range),
         cell: async (name, row, total, column, rowid) =>
           reader(name).cell(row, total, column, rowid),
+        objectDetails: async (name) => readDetails(connection(), name),
         mbtiles: async () => readMbtiles(connection()),
         zoomCounts: async (skip, onRange, onCount) => {
           if (!database?.count) return new Promise<void>(() => {});

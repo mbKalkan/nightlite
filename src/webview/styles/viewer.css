@@ -285,6 +285,41 @@ body {
   color: var(--vscode-descriptionForeground);
 }
 
+/* An object's columns, indexes and foreign keys */
+
+.nl-schema-table {
+  border-collapse: collapse;
+}
+
+.nl-schema-table th {
+  padding: 0 20px 4px 0;
+  color: var(--vscode-descriptionForeground);
+  font-size: 12px;
+  font-weight: 400;
+  text-align: left;
+}
+
+.nl-schema-table td {
+  padding: 3px 20px 3px 0;
+  border-top: 1px solid
+    var(--nl-grid-line, color-mix(in srgb, var(--vscode-foreground) 10%, transparent));
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.nl-schema-table td:first-child {
+  color: var(--vscode-descriptionForeground);
+}
+
+.nl-schema-table td.nl-code {
+  color: var(--vscode-foreground);
+  font-family: var(--vscode-editor-font-family, monospace);
+}
+
+body.vscode-high-contrast .nl-schema-table td {
+  border-top-color: var(--vscode-contrastBorder, transparent);
+}
+
 /* The MBTiles summary */
 
 .nl-mbtiles-head {
@@ -617,6 +652,10 @@ body.vscode-high-contrast .nl-sql-keyword {
 
 .nl-detail-toggle {
   margin-left: 4px;
+}
+
+.nl-invisible {
+  visibility: hidden;
 }
 
 /* Rows */

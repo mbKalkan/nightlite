@@ -10,6 +10,7 @@ export type WorkerCall =
   | { type: 'count'; name: string }
   | { type: 'copy'; name: string; range: CopyRange }
   | { type: 'cell'; name: string; row: number; total: number; column: number; rowid?: string }
+  | { type: 'objectDetails'; name: string }
   | { type: 'mbtiles' }
   | { type: 'zoomRange' }
   | { type: 'zoomCount'; zoom: number };

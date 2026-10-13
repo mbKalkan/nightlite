@@ -60,16 +60,20 @@ export function objectView(object: SchemaObject, strings: ViewerStrings): HTMLEl
     }
   }
 
-  section.append(title, traits);
+  // Columns, indexes and foreign keys arrive from the extension host into this.
+  section.append(title, traits, element('div', 'nl-object-details'));
+  const statement = element('section', 'nl-section');
+  statement.append(element('h2', 'nl-heading', strings.statementHeading));
   if (object.sql) {
     const pre = element('pre', 'nl-sql');
     const code = element('code', '');
     code.innerHTML = highlightSql(object.sql);
     pre.append(code);
-    section.append(pre);
+    statement.append(pre);
   } else {
-    section.append(element('p', 'nl-note', strings.noSql));
+    statement.append(element('p', 'nl-note', strings.noSql));
   }
+  section.append(statement);
   return section;
 }
 
