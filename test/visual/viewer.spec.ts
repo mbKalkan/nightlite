@@ -12,7 +12,7 @@ for (const theme of ['dark', 'light', 'hcDark', 'hcLight'] as ThemeName[]) {
       await viewer.load('sample.mbtiles');
 
       await expect(page.locator('.nl-file-name')).toHaveText('sample.mbtiles');
-      await expect(page.locator('.nl-format')).toHaveText('MBTiles tileset');
+      await expect(page.locator('.nl-title')).toHaveText('MBTiles tileset');
       await expect(page.locator('.nl-facts dt')).toContainText([
         'File size',
         'Pages',

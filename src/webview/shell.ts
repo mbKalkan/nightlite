@@ -1,20 +1,39 @@
-import type { FileInfo, LoadError, ViewerStrings } from '../shared/protocol';
-import { formatBytes, formatCount } from '../shared/units';
+import type {
+  DatabaseError,
+  FileInfo,
+  LoadError,
+  SchemaObject,
+  ViewerStrings,
+} from '../shared/protocol';
+import { ObjectTree, objectKey, type EntryKey } from './objectTree';
+import { databaseErrorMessage, element, messageView, objectView, overviewView } from './views';
 
-/** The viewer's frame: a title bar with the file name and the content below it. */
+/** The viewer's frame: the file name on top, the database's objects on the left, content right. */
 export class Shell {
   private readonly fileName: HTMLElement;
+  private readonly sidebar: HTMLElement;
   private readonly content: HTMLElement;
+  private file: { info: FileInfo; locale: string; strings: ViewerStrings } | undefined;
+  private objects = new Map<EntryKey, SchemaObject>();
+  private tree: ObjectTree | undefined;
+  private schemaError: { error: DatabaseError; detail: string } | undefined;
 
-  constructor(root: HTMLElement) {
+  constructor(
+    root: HTMLElement,
+    private readonly onSelect: (key: EntryKey) => void,
+  ) {
     root.innerHTML = `
       <div class="nl-shell">
         <header class="nl-toolbar">
           <span class="nl-file-name"></span>
         </header>
-        <main class="nl-content" tabindex="-1"></main>
+        <div class="nl-body">
+          <nav class="nl-sidebar" hidden></nav>
+          <main class="nl-content" tabindex="-1"></main>
+        </div>
       </div>`;
     this.fileName = root.querySelector('.nl-file-name') as HTMLElement;
+    this.sidebar = root.querySelector('.nl-sidebar') as HTMLElement;
     this.content = root.querySelector('.nl-content') as HTMLElement;
   }
 
@@ -24,91 +43,87 @@ export class Shell {
     this.content.replaceChildren(element('div', 'nl-progress'));
   }
 
-  showFile(file: FileInfo, locale: string, strings: ViewerStrings): void {
-    this.setFileName(file.fileName);
-    const { header } = file;
-    const rows: [string, string][] = [
-      [strings.fileSize, formatBytes(file.fileSize, locale)],
-      [
-        strings.pages,
-        format(
-          strings.pagesValue,
-          formatCount(header.pageCount, locale),
-          formatBytes(header.pageSize, locale),
-        ),
-      ],
-      [strings.textEncoding, header.textEncoding],
-      [strings.journal, header.wal ? strings.journalWal : strings.journalRollback],
-    ];
-    if (header.userVersion !== 0) {
-      rows.push([strings.userVersion, formatCount(header.userVersion, locale)]);
-    }
-    if (header.applicationId !== 0) {
-      rows.push([strings.applicationId, describeApplicationId(header.applicationId)]);
-    }
-    rows.push([strings.writtenBy, `SQLite ${header.sqliteVersion}`]);
+  showFile(info: FileInfo, locale: string, strings: ViewerStrings): void {
+    this.file = { info, locale, strings };
+    this.setFileName(info.fileName);
+    this.sidebar.setAttribute('aria-label', strings.databaseObjects);
+    this.show('overview');
+    // Until the schema arrives the database is still opening.
+    this.content.setAttribute('aria-busy', 'true');
+  }
 
-    const list = document.createElement('dl');
-    list.className = 'nl-facts';
-    for (const [term, value] of rows) {
-      list.append(element('dt', '', term), element('dd', '', value));
+  /** Lists the objects and shows `selected` if the database still has it, else the overview. */
+  showSchema(objects: SchemaObject[], selected: EntryKey | undefined): void {
+    if (!this.file) return;
+    const { strings } = this.file;
+    this.schemaError = undefined;
+    this.objects = new Map(objects.map((object) => [objectKey(object), object]));
+    this.tree = new ObjectTree(objects, strings, (key) => {
+      this.show(key);
+      this.onSelect(key);
+    });
+    const parts: HTMLElement[] = [this.tree.element];
+    if (!objects.some((object) => object.type === 'table')) {
+      parts.push(element('p', 'nl-sidebar-note', strings.noTables));
     }
-    const section = element('section', 'nl-overview');
-    section.append(element('h1', 'nl-format', formatName(file.format, strings)), list);
+    this.sidebar.replaceChildren(...parts);
+    this.sidebar.hidden = false;
     this.content.removeAttribute('aria-busy');
-    this.content.replaceChildren(section);
+    this.tree.select(selected && this.tree.has(selected) ? selected : 'overview');
+  }
+
+  /** The header was readable but the database wasn't: say why below the header's facts. */
+  showSchemaError(error: DatabaseError, detail: string): void {
+    this.schemaError = { error, detail };
+    this.sidebar.hidden = true;
+    this.content.removeAttribute('aria-busy');
+    this.show('overview');
   }
 
   showError(fileName: string, error: LoadError, strings: ViewerStrings): void {
     this.setFileName(fileName);
+    this.sidebar.hidden = true;
     const messages: Record<LoadError, string> = {
       empty: strings.errorEmpty,
       notSqlite: strings.errorNotSqlite,
       unreadable: strings.errorUnreadable,
       notOnDisk: strings.errorNotOnDisk,
     };
-    const box = element('div', 'nl-error');
-    box.setAttribute('role', 'alert');
-    box.append(
-      element('h1', 'nl-error-title', strings.errorTitle),
-      element('p', 'nl-error-message', messages[error]),
-    );
     this.content.removeAttribute('aria-busy');
-    this.content.replaceChildren(box);
+    this.content.replaceChildren(messageView(strings.errorTitle, messages[error]));
+  }
+
+  /** Shows an object picked elsewhere, like Go to Table, and puts the keyboard on it. */
+  reveal(name: string): void {
+    const object = [...this.objects.values()].find((candidate) => candidate.name === name);
+    if (object) {
+      this.tree?.select(objectKey(object), true);
+    }
+  }
+
+  private show(key: EntryKey): void {
+    if (!this.file) return;
+    const { info, locale, strings } = this.file;
+    const object = this.objects.get(key);
+    if (object) {
+      this.content.replaceChildren(objectView(object, strings));
+      return;
+    }
+    const parts: HTMLElement[] = [overviewView(info, locale, strings)];
+    if (this.schemaError) {
+      parts.push(
+        messageView(
+          strings.openErrorTitle,
+          databaseErrorMessage(this.schemaError.error, strings),
+          this.schemaError.detail,
+        ),
+      );
+    }
+    this.content.replaceChildren(...parts);
   }
 
   private setFileName(name: string): void {
     this.fileName.textContent = name;
     this.content.setAttribute('aria-label', name);
   }
-}
-
-function formatName(format: FileInfo['format'], strings: ViewerStrings): string {
-  return {
-    sqlite: strings.formatSqlite,
-    mbtiles: strings.formatMbtiles,
-    geopackage: strings.formatGeopackage,
-  }[format];
-}
-
-/** Application IDs are usually four ASCII letters, like GPKG; show them as text when they are. */
-function describeApplicationId(id: number): string {
-  const hex = `0x${id.toString(16).padStart(8, '0')}`;
-  const text = String.fromCharCode(id >>> 24, (id >>> 16) & 0xff, (id >>> 8) & 0xff, id & 0xff);
-  return /^[\x20-\x7e]{4}$/.test(text) ? `${text} (${hex})` : hex;
-}
-
-function format(template: string, ...values: string[]): string {
-  return template.replace(/\{(\d+)\}/g, (match, index: string) => values[Number(index)] ?? match);
-}
-
-function element(tag: string, className: string, text?: string): HTMLElement {
-  const el = document.createElement(tag);
-  if (className) {
-    el.className = className;
-  }
-  if (text !== undefined) {
-    el.textContent = text;
-  }
-  return el;
 }

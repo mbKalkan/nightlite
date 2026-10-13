@@ -1,28 +1,41 @@
 import * as vscode from 'vscode';
 import type { HostToWebviewMessage, WebviewToHostMessage } from '../shared/protocol';
 import { describeFile } from '../shared/sqliteHeader';
+import { classifyDatabaseError, DatabaseDocument } from './databaseDocument';
 import { readFileHeader } from './fileHeader';
+import { pickObject } from './objectPicker';
 import { viewerStrings } from './strings';
 import { buildWebviewHtml } from './webviewHtml';
 
-export class ViewerProvider implements vscode.CustomReadonlyEditorProvider {
+interface Editor {
+  panel: vscode.WebviewPanel;
+  document: DatabaseDocument;
+}
+
+export class ViewerProvider implements vscode.CustomReadonlyEditorProvider<DatabaseDocument> {
   static readonly viewType = 'nightlite.viewer';
+
+  private active: Editor | undefined;
 
   constructor(private readonly extensionUri: vscode.Uri) {}
 
   static register(context: vscode.ExtensionContext): vscode.Disposable {
     const provider = new ViewerProvider(context.extensionUri);
-    return vscode.window.registerCustomEditorProvider(ViewerProvider.viewType, provider, {
-      webviewOptions: { retainContextWhenHidden: true },
-      supportsMultipleEditorsPerDocument: true,
-    });
+    return vscode.Disposable.from(
+      vscode.window.registerCustomEditorProvider(ViewerProvider.viewType, provider, {
+        webviewOptions: { retainContextWhenHidden: true },
+        supportsMultipleEditorsPerDocument: true,
+      }),
+      vscode.commands.registerCommand('nightlite.goToTable', () => provider.goToObject()),
+    );
   }
 
-  openCustomDocument(uri: vscode.Uri): vscode.CustomDocument {
-    return { uri, dispose: () => {} };
+  openCustomDocument(uri: vscode.Uri): DatabaseDocument {
+    const worker = vscode.Uri.joinPath(this.extensionUri, 'dist', 'databaseWorker.js');
+    return new DatabaseDocument(uri, worker.fsPath);
   }
 
-  resolveCustomEditor(document: vscode.CustomDocument, panel: vscode.WebviewPanel): void {
+  resolveCustomEditor(document: DatabaseDocument, panel: vscode.WebviewPanel): void {
     const distWebview = vscode.Uri.joinPath(this.extensionUri, 'dist', 'webview');
     panel.webview.options = { enableScripts: true, localResourceRoots: [distWebview] };
     panel.webview.html = buildWebviewHtml({
@@ -32,19 +45,38 @@ export class ViewerProvider implements vscode.CustomReadonlyEditorProvider {
       lang: vscode.env.language,
     });
 
+    const editor: Editor = { panel, document };
     const post = (message: HostToWebviewMessage) => panel.webview.postMessage(message);
-    const subscription = panel.webview.onDidReceiveMessage((message: WebviewToHostMessage) => {
-      if (message.type === 'ready') {
-        void this.load(document.uri, post);
+    const subscriptions = [
+      panel.webview.onDidReceiveMessage((message: WebviewToHostMessage) => {
+        if (message.type === 'ready') {
+          void this.load(document, post);
+        }
+      }),
+      panel.onDidChangeViewState(() => this.track(editor)),
+    ];
+    this.track(editor);
+    panel.onDidDispose(() => {
+      subscriptions.forEach((subscription) => subscription.dispose());
+      if (this.active === editor) {
+        this.active = undefined;
       }
     });
-    panel.onDidDispose(() => subscription.dispose());
+  }
+
+  private track(editor: Editor): void {
+    if (editor.panel.active) {
+      this.active = editor;
+    } else if (this.active === editor) {
+      this.active = undefined;
+    }
   }
 
   private async load(
-    uri: vscode.Uri,
+    document: DatabaseDocument,
     post: (message: HostToWebviewMessage) => Thenable<boolean>,
   ): Promise<void> {
+    const { uri } = document;
     const strings = viewerStrings();
     const fileName = uri.path.slice(uri.path.lastIndexOf('/') + 1);
     // SQLite reads the file in place, so it has to be on a disk this extension host can reach.
@@ -60,10 +92,38 @@ export class ViewerProvider implements vscode.CustomReadonlyEditorProvider {
       return;
     }
     const result = describeFile(uri.path, header.bytes, header.size);
-    await post(
-      'error' in result
-        ? { type: 'error', fileName, error: result.error, strings }
-        : { type: 'load', file: result.file, locale: vscode.env.language, strings },
-    );
+    if ('error' in result) {
+      await post({ type: 'error', fileName, error: result.error, strings });
+      return;
+    }
+    // The header alone shows at once; the schema follows as soon as the database is open.
+    await post({ type: 'load', file: result.file, locale: vscode.env.language, strings });
+    try {
+      await post({ type: 'schema', objects: await document.schema(result.file.header) });
+    } catch (error) {
+      await post({ type: 'schemaError', ...classifyDatabaseError(error) });
+    }
+  }
+
+  private async goToObject(): Promise<void> {
+    const editor = this.active;
+    const header = editor?.document.header;
+    if (!editor || !header) {
+      return;
+    }
+    let objects;
+    try {
+      objects = await editor.document.schema(header);
+    } catch {
+      return;
+    }
+    const name = await pickObject(objects);
+    if (name !== undefined) {
+      editor.panel.reveal();
+      void editor.panel.webview.postMessage({
+        type: 'reveal',
+        name,
+      } satisfies HostToWebviewMessage);
+    }
   }
 }

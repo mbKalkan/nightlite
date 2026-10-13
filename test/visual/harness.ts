@@ -1,6 +1,9 @@
 import { readFileSync, statSync } from 'node:fs';
 import { extname, join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import type { Page } from '@playwright/test';
+import { readSchema } from '../../src/extension/database/schema';
+import { connectionTarget } from '../../src/extension/database/target';
 import { buildWebviewHtml } from '../../src/extension/webviewHtml';
 import type { HostToWebviewMessage, ViewerStrings } from '../../src/shared/protocol';
 import { HEADER_SIZE, describeFile } from '../../src/shared/sqliteHeader';
@@ -39,6 +42,30 @@ export const strings: ViewerStrings = {
   userVersion: 'User version',
   applicationId: 'Application ID',
   writtenBy: 'Last written by',
+  databaseObjects: 'Database objects',
+  overview: 'Overview',
+  tables: 'Tables',
+  views: 'Views',
+  indexes: 'Indexes',
+  triggers: 'Triggers',
+  noTables: 'This database has no tables yet.',
+  expand: 'Expand',
+  collapse: 'Collapse',
+  table: 'Table',
+  view: 'View',
+  index: 'Index',
+  trigger: 'Trigger',
+  virtualTable: 'Virtual table',
+  internalTable: 'SQLite internal',
+  withoutRowid: 'WITHOUT ROWID',
+  strict: 'STRICT',
+  onTable: 'on {0}',
+  noSql: 'SQLite keeps no CREATE statement for this object.',
+  openErrorTitle: "The database couldn't be opened",
+  openErrorDamaged: 'The database file is damaged.',
+  openErrorLocked:
+    'Another program is writing to the database right now. Reopen it when that program is done.',
+  openErrorOther: 'SQLite reported a problem with this database.',
 };
 
 /**
@@ -76,6 +103,7 @@ export async function openViewer(page: Page, theme: ThemeName) {
 
   await page.addInitScript((theme) => {
     const sent: unknown[] = [];
+    let state: unknown;
     // VS Code replaces all theme variables and classes on a theme change.
     const applyTheme = ({ kind, classes, variables }: typeof theme) => {
       const root = document.documentElement;
@@ -95,7 +123,11 @@ export async function openViewer(page: Page, theme: ThemeName) {
     Object.assign(window, {
       __sent: sent,
       __applyTheme: applyTheme,
-      acquireVsCodeApi: () => ({ postMessage: (message: unknown) => sent.push(message) }),
+      acquireVsCodeApi: () => ({
+        postMessage: (message: unknown) => sent.push(message),
+        getState: () => state,
+        setState: (value: unknown) => (state = value),
+      }),
     });
     // Init scripts run before the document exists, so theme it once parsing is done.
     document.addEventListener('DOMContentLoaded', () => applyTheme(theme));
@@ -115,17 +147,31 @@ export async function openViewer(page: Page, theme: ThemeName) {
         message,
       );
     },
-    /** Sends what the extension host would for a fixture: its header facts or why it can't. */
-    async load(fixture: string) {
+    /**
+     * Sends what the extension host would for a fixture: its header facts, then its schema,
+     * or why it can't be shown. `schema: false` stops after the header, as while still opening.
+     */
+    async load(fixture: string, { schema = true } = {}) {
       const path = join('test/fixtures', fixture);
       const bytes = readFileSync(path).subarray(0, HEADER_SIZE);
       const result = describeFile(path, bytes, statSync(path).size);
-      await this.post(
-        'error' in result
-          ? { type: 'error', fileName: fixture, error: result.error, strings }
-          : { type: 'load', file: result.file, locale: 'en', strings },
-      );
-      await page.waitForSelector('.nl-overview, .nl-error');
+      if ('error' in result) {
+        await this.post({ type: 'error', fileName: fixture, error: result.error, strings });
+        await page.waitForSelector('.nl-error');
+        return;
+      }
+      await this.post({ type: 'load', file: result.file, locale: 'en', strings });
+      await page.waitForSelector('.nl-overview');
+      if (!schema) return;
+      const db = new DatabaseSync(connectionTarget(path, result.file.header.wal), {
+        readOnly: true,
+      });
+      try {
+        await this.post({ type: 'schema', objects: readSchema(db) });
+      } finally {
+        db.close();
+      }
+      await page.waitForSelector('.nl-sidebar:not([hidden])');
     },
     /** Switches the theme the way VS Code does: CSS variables plus body classes. */
     async setTheme(name: ThemeName) {
