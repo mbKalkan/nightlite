@@ -1,6 +1,13 @@
 import type * as vscode from 'vscode';
-import type { DatabaseHeader, ObjectInfo, RowPage, SchemaObject } from '../shared/protocol';
+import type {
+  CopyRange,
+  DatabaseHeader,
+  ObjectInfo,
+  RowPage,
+  SchemaObject,
+} from '../shared/protocol';
 import { DatabaseClient } from './database/client';
+import type { CopiedText } from './database/rows';
 import { connectionTarget } from './database/target';
 import type { DatabaseBackend } from './requests';
 
@@ -37,6 +44,10 @@ export class DatabaseDocument implements vscode.CustomDocument, DatabaseBackend 
 
   async rows(name: string, start: number, count: number, total: number): Promise<RowPage> {
     return (await this.open()).rows(name, start, count, total);
+  }
+
+  async copy(name: string, range: CopyRange): Promise<CopiedText> {
+    return (await this.open()).copy(name, range);
   }
 
   count(name: string): Promise<number> {

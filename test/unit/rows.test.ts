@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterAll, describe, expect, it } from 'vitest';
 import { TableReader, TEXT_LIMIT, quote } from '../../src/extension/database/rows';
+import { COPY_LIMIT } from '../../src/shared/values';
 
 const sample = new DatabaseSync('test/fixtures/sample.sqlite', { readOnly: true });
 const scratch = mkdtempSync(join(tmpdir(), 'nightlite-rows-'));
@@ -128,5 +129,88 @@ describe('TableReader', () => {
     const reader = new TableReader(sample, 'empty_table');
     expect(reader.info.estimate).toBe(0);
     expect(reader.page(0, 100, 0)).toMatchObject({ rows: [], end: true });
+  });
+});
+
+describe('TableReader.copy', () => {
+  const range = (
+    start: number,
+    count: number | null,
+    firstColumn: number,
+    lastColumn = firstColumn,
+  ) => ({
+    start,
+    count,
+    total: 18,
+    firstColumn,
+    lastColumn,
+  });
+
+  it('copies one cell as its full, bare value', () => {
+    const reader = new TableReader(sample, 'value_kinds');
+    // Rows are value_kinds' ids 1…18 at positions 0…17; column 2 is the value.
+    expect(reader.copy(range(9, 1, 2)).text).toBe('first line\nsecond line\n\tindented');
+    const long = reader.copy(range(11, 1, 2));
+    expect(long.text).toHaveLength(11200);
+    expect(long).toMatchObject({ rows: 1, cells: 1, stopped: false, cut: false });
+    expect(reader.copy(range(3, 1, 2)).text).toBe('9007199254740993');
+    expect(reader.copy(range(2, 1, 2)).text).toBe('42.0');
+    expect(reader.copy(range(14, 1, 2)).text).toBe('0001027f80ff');
+    expect(reader.copy(range(15, 1, 2)).text).toBe('');
+    expect(reader.copy(range(17, 1, 2)).text).toBe('');
+  });
+
+  it('copies a block as tab-separated text that spreadsheets read back', () => {
+    const reader = new TableReader(sample, 'value_kinds');
+    const block = reader.copy(range(6, 4, 1, 2));
+    expect(block.text).toBe(
+      [
+        'huge real\t1e+300',
+        'empty text\t',
+        'text that looks like a number\t007',
+        'multi-line text\t"first line\nsecond line\n\tindented"',
+      ].join('\n'),
+    );
+    expect(block).toMatchObject({ rows: 4, cells: 8, stopped: false });
+  });
+
+  it('copies the rows the grid shows, even after a far jump', () => {
+    const reader = new TableReader(sample, 'events');
+    const page = reader.page(2500, 100, 5000);
+    const ids = reader.copy({ start: 2550, count: 3, total: 5000, firstColumn: 0, lastColumn: 0 });
+    expect(ids.text.split('\n')).toEqual(page.rows.slice(50, 53).map((row) => String(row[0])));
+  });
+
+  it('copies to the end of views and tables without rowids', () => {
+    const view = new TableReader(sample, 'album_list');
+    const titles = view.copy({ start: 3, count: null, total: 5, firstColumn: 0, lastColumn: 0 });
+    expect(titles.rows).toBe(2);
+    const tags = new TableReader(sample, 'tags');
+    expect(tags.copy({ start: 0, count: null, total: 3, firstColumn: 0, lastColumn: 0 }).text).toBe(
+      'anadolu rock\njazz\npop',
+    );
+  });
+
+  it('stops at the clipboard limit and says so', () => {
+    const path = join(scratch, 'big.db');
+    const db = new DatabaseSync(path);
+    // Three rows of 7 M characters fit two to the limit; one of 17 M is cut.
+    db.exec(`
+      CREATE TABLE t (v TEXT);
+      INSERT INTO t VALUES (printf('%.*c', 7000000, 'a')), (printf('%.*c', 7000000, 'b')),
+        (printf('%.*c', 7000000, 'c')), (printf('%.*c', ${COPY_LIMIT + 1000}, 'd'));
+    `);
+    db.close();
+    const big = new DatabaseSync(path, { readOnly: true });
+    try {
+      const reader = new TableReader(big, 't');
+      const three = reader.copy({ start: 0, count: 3, total: 4, firstColumn: 0, lastColumn: 0 });
+      expect(three).toMatchObject({ rows: 2, stopped: true, cut: false });
+      const huge = reader.copy({ start: 3, count: 1, total: 4, firstColumn: 0, lastColumn: 0 });
+      expect(huge).toMatchObject({ rows: 1, stopped: false, cut: true });
+      expect(huge.text).toHaveLength(COPY_LIMIT);
+    } finally {
+      big.close();
+    }
   });
 });

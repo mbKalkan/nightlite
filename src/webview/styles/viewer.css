@@ -426,6 +426,7 @@ body.vscode-high-contrast .nl-sql-keyword {
 
 .nl-grid {
   --nl-grid-line: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+  --nl-accent: var(--vscode-focusBorder, #0078d4);
   position: relative;
   flex: 1;
   min-height: 0;
@@ -433,6 +434,7 @@ body.vscode-high-contrast .nl-sql-keyword {
   outline: none;
   font-family: var(--vscode-editor-font-family, monospace);
   font-size: var(--vscode-editor-font-size, 13px);
+  user-select: none;
 }
 
 body.vscode-high-contrast .nl-grid {
@@ -543,6 +545,35 @@ body.vscode-high-contrast .nl-grid {
   content: '·';
 }
 
+/* Selection: a tint over the block, a frame around the active cell, and marked headers. Out of
+   focus the frame thins, so it's clear where the keyboard is. */
+
+.nl-grid-cell.nl-grid-sel {
+  background: color-mix(in srgb, var(--nl-accent) 16%, transparent);
+}
+
+.nl-grid-rowhead.nl-grid-sel,
+.nl-grid-head.nl-grid-sel {
+  background: color-mix(in srgb, var(--nl-accent) 22%, var(--vscode-editor-background));
+  color: var(--vscode-foreground);
+}
+
+.nl-grid-rowhead.nl-grid-sel {
+  box-shadow: inset -2px 0 0 var(--nl-accent);
+}
+
+.nl-grid-head.nl-grid-sel {
+  box-shadow: inset 0 -2px 0 var(--nl-accent);
+}
+
+.nl-grid-active {
+  box-shadow: inset 0 0 0 2px var(--nl-accent);
+}
+
+.nl-grid:not(:focus) .nl-grid-active {
+  box-shadow: inset 0 0 0 1px var(--nl-accent);
+}
+
 .nl-number {
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -583,4 +614,44 @@ body.vscode-high-contrast .nl-grid {
   color: var(--vscode-descriptionForeground);
   font-size: 12px;
   white-space: nowrap;
+}
+
+.nl-status-selection {
+  display: flex;
+  flex: 1;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.nl-status-where,
+.nl-status-type {
+  flex: none;
+}
+
+.nl-status-type {
+  opacity: 0.8;
+}
+
+.nl-status-value {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--vscode-foreground);
+  font-family: var(--vscode-editor-font-family, monospace);
+  text-overflow: ellipsis;
+}
+
+.nl-status-note:empty,
+.nl-status-selection:empty {
+  display: none;
+}
+
+.nl-status-note {
+  flex: none;
+  color: var(--vscode-foreground);
+}
+
+.nl-status-counts {
+  flex: none;
+  margin-left: auto;
 }

@@ -1,6 +1,7 @@
 import { Worker } from 'node:worker_threads';
-import type { ObjectInfo, RowPage, SchemaObject } from '../../shared/protocol';
+import type { CopyRange, ObjectInfo, RowPage, SchemaObject } from '../../shared/protocol';
 import type { WorkerCall, WorkerFailure, WorkerResponse } from './messages';
+import type { CopiedText } from './rows';
 
 /** An error from the database worker, with SQLite's result code when SQLite raised it. */
 export class DatabaseFailure extends Error {
@@ -44,6 +45,10 @@ export class DatabaseClient {
 
   count(name: string): Promise<number> {
     return this.call({ type: 'count', name }) as Promise<number>;
+  }
+
+  copy(name: string, range: CopyRange): Promise<CopiedText> {
+    return this.call({ type: 'copy', name, range }) as Promise<CopiedText>;
   }
 
   dispose(): void {

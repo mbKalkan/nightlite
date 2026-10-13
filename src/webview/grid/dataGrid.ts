@@ -13,6 +13,8 @@ const MIN_WIDTH = 56;
 const MAX_WIDTH = 360;
 /** Blocks kept in memory; the ones farthest from the view go first. */
 const KEEP_BLOCKS = 60;
+/** The active cell's id, for `aria-activedescendant`; one grid is shown at a time. */
+const ACTIVE_ID = 'nl-grid-active';
 
 interface Block {
   rows: CellValue[][];
@@ -20,11 +22,36 @@ interface Block {
   rowids?: string[];
 }
 
+export interface CellPosition {
+  row: number;
+  col: number;
+}
+
+/** A block of cells by row position and column index, both ends included. */
+export interface CellRange {
+  row1: number;
+  col1: number;
+  row2: number;
+  col2: number;
+}
+
+export interface GridEvents {
+  request(start: number, count: number, total: number): void;
+  onTotal(total: number, exact: boolean): void;
+  onSelection(): void;
+  /** `toEnd`: the selection runs to the last row, wherever the count turns out to end. */
+  onCopy(range: CellRange, toEnd: boolean): void;
+}
+
+/** What a mouse drag extends: cells, whole rows (from a row header) or whole columns. */
+type Drag = 'cells' | 'rows' | 'columns';
+
 /**
  * A virtualized table of rows: only the rows in view (plus a few) are in the DOM, fetched a
  * block at a time. Tables taller than a browser can scroll keep a logical position of their own
  * and map the scrollbar onto it, so the wheel and keys still move row by row while dragging
- * the scrollbar can reach any of millions of rows.
+ * the scrollbar can reach any of millions of rows. Cells are selected like a spreadsheet's:
+ * an active cell and a block around it, by mouse or keyboard.
  */
 export class DataGrid {
   readonly element: HTMLElement;
@@ -40,27 +67,42 @@ export class DataGrid {
   private scale = 1;
   private frame = 0;
   private widthsMeasured = false;
+  private widths: number[] = [];
   private rowHeaderWidth = 64;
   private failed = false;
   private context: CanvasRenderingContext2D | null | undefined;
+  /** Where the selection started, and its other corner: the active cell. */
+  private anchor: CellPosition = { row: 0, col: 0 };
+  private focus: CellPosition = { row: 0, col: 0 };
+  private drag: Drag | undefined;
+  private readonly onCopy = (event: ClipboardEvent) => this.copy(event);
+  private readonly onMouseUp = () => (this.drag = undefined);
+  /**
+   * VS Code runs Select All on the webview's text as well when Ctrl+A selects the cells;
+   * the grid keeps that from highlighting the text around it.
+   */
+  private readonly onSelectStart = (event: Event) => {
+    if (document.activeElement === this.element) event.preventDefault();
+  };
 
   constructor(
     private readonly info: ObjectInfo,
     private readonly strings: ViewerStrings,
     private readonly locale: string,
-    private readonly request: (start: number, count: number, total: number) => void,
-    private readonly onTotal: (total: number, exact: boolean) => void,
+    private readonly events: GridEvents,
   ) {
     this.total = info.estimate ?? BLOCK;
     this.element = document.createElement('div');
     this.element.className = 'nl-grid';
     this.element.tabIndex = 0;
-    this.element.setAttribute('role', 'region');
+    this.element.setAttribute('role', 'grid');
+    this.element.setAttribute('aria-multiselectable', 'true');
+    this.element.setAttribute('aria-colcount', String(info.columns.length + 1));
     this.element.setAttribute('aria-label', strings.rowsOf.replace('{0}', info.name));
     this.element.innerHTML = `
       <div class="nl-grid-sizer">
-        <div class="nl-grid-header"></div>
-        <div class="nl-grid-rows"></div>
+        <div class="nl-grid-header" role="row" aria-rowindex="1"></div>
+        <div class="nl-grid-rows" role="rowgroup"></div>
       </div>`;
     this.sizer = this.element.querySelector('.nl-grid-sizer') as HTMLElement;
     this.header = this.element.querySelector('.nl-grid-header') as HTMLElement;
@@ -71,6 +113,11 @@ export class DataGrid {
     this.element.addEventListener('scroll', () => this.onScroll(), { passive: true });
     this.element.addEventListener('wheel', (event) => this.onWheel(event), { passive: false });
     this.element.addEventListener('keydown', (event) => this.onKeyDown(event));
+    this.element.addEventListener('mousedown', (event) => this.onMouseDown(event));
+    this.element.addEventListener('mousemove', (event) => this.onMouseMove(event));
+    window.addEventListener('mouseup', this.onMouseUp);
+    document.addEventListener('copy', this.onCopy);
+    document.addEventListener('selectstart', this.onSelectStart);
     new ResizeObserver(() => this.layout()).observe(this.element);
   }
 
@@ -78,11 +125,52 @@ export class DataGrid {
     return { total: this.total, exact: this.exact };
   }
 
+  get selection(): CellRange {
+    return {
+      row1: Math.min(this.anchor.row, this.focus.row),
+      col1: Math.min(this.anchor.col, this.focus.col),
+      row2: Math.max(this.anchor.row, this.focus.row),
+      col2: Math.max(this.anchor.col, this.focus.col),
+    };
+  }
+
+  get hasRowid(): boolean {
+    return this.info.hasRowid;
+  }
+
+  columnName(col: number): string | undefined {
+    return this.info.columns[col]?.name;
+  }
+
+  get activeCell(): CellPosition {
+    return { ...this.focus };
+  }
+
+  /** A cell's value and storage class, when its rows have been read. */
+  cell(row: number, col: number): { value: CellValue; type: string } | undefined {
+    const block = this.blocks.get(Math.floor(row / BLOCK));
+    const values = block?.rows[row % BLOCK];
+    if (!block || !values) return undefined;
+    return { value: values[col], type: block.types[row % BLOCK][col] };
+  }
+
+  /** What the row header says: the rowid, once read, or the row's number. */
+  rowLabel(row: number): string | undefined {
+    if (!this.info.hasRowid) return String(row + 1);
+    return this.blocks.get(Math.floor(row / BLOCK))?.rowids?.[row % BLOCK];
+  }
+
   /** The exact row count arrived from the background count. */
   setTotal(total: number, exact = true): void {
+    const last = this.total - 1;
     this.total = Math.max(0, total);
     this.exact = exact;
-    this.onTotal(this.total, this.exact);
+    // Whole columns stay whole as the count changes.
+    if (this.anchor.row === last) this.anchor.row = this.total - 1;
+    if (this.focus.row === last) this.focus.row = this.total - 1;
+    this.anchor = this.clamp(this.anchor);
+    this.focus = this.clamp(this.focus);
+    this.events.onTotal(this.total, this.exact);
     this.layout();
   }
 
@@ -96,7 +184,7 @@ export class DataGrid {
     } else if (!this.exact && this.info.estimate === null && reached >= this.total) {
       // No estimate: keep a block of room below the last rows read until the count arrives.
       this.total = reached + BLOCK;
-      this.onTotal(this.total, false);
+      this.events.onTotal(this.total, false);
       this.layout();
     }
     if (!this.widthsMeasured && page.rows.length > 0) {
@@ -105,6 +193,8 @@ export class DataGrid {
     }
     this.evict(block);
     this.schedule();
+    // The active cell's value may have just arrived.
+    this.events.onSelection();
   }
 
   /** Shows why rows couldn't be read, in place of the rows. */
@@ -116,6 +206,9 @@ export class DataGrid {
 
   dispose(): void {
     cancelAnimationFrame(this.frame);
+    window.removeEventListener('mouseup', this.onMouseUp);
+    document.removeEventListener('copy', this.onCopy);
+    document.removeEventListener('selectstart', this.onSelectStart);
     this.element.remove();
   }
 
@@ -124,6 +217,7 @@ export class DataGrid {
     const content = this.total * ROW_HEIGHT;
     const scrolled = Math.min(content, MAX_SCROLL_HEIGHT);
     this.sizer.style.height = `${HEADER_HEIGHT + scrolled}px`;
+    this.element.setAttribute('aria-rowcount', String(this.total + 1));
     // Map the browser's scroll range exactly onto the rows', so the end of one is the end of
     // the other.
     const maxScroll = Math.max(0, HEADER_HEIGHT + scrolled - this.element.clientHeight);
@@ -134,12 +228,15 @@ export class DataGrid {
 
   /** How far the rows can scroll: all of them minus what fits in the view. */
   private maxLogical(): number {
-    const view = Math.max(0, this.element.clientHeight - HEADER_HEIGHT);
-    return Math.max(0, this.total * ROW_HEIGHT - view);
+    return Math.max(0, this.total * ROW_HEIGHT - this.viewHeight());
+  }
+
+  private viewHeight(): number {
+    return Math.max(0, this.element.clientHeight - HEADER_HEIGHT);
   }
 
   private viewportRows(): number {
-    return Math.max(1, Math.floor((this.element.clientHeight - HEADER_HEIGHT) / ROW_HEIGHT));
+    return Math.max(1, Math.floor(this.viewHeight() / ROW_HEIGHT));
   }
 
   private schedule(): void {
@@ -161,35 +258,179 @@ export class DataGrid {
   private onWheel(event: WheelEvent): void {
     if (this.scale === 1 || event.ctrlKey) return;
     event.preventDefault();
-    const unit = event.deltaMode === 1 ? ROW_HEIGHT : event.deltaMode === 2 ? this.page() : 1;
+    const unit = event.deltaMode === 1 ? ROW_HEIGHT : event.deltaMode === 2 ? this.viewHeight() : 1;
     this.element.scrollLeft += event.deltaX * unit;
     this.scrollTo(this.logicalTop + event.deltaY * unit);
   }
 
   private onKeyDown(event: KeyboardEvent): void {
-    const page = this.page();
-    const moves: Record<string, number | undefined> = {
-      ArrowDown: ROW_HEIGHT,
-      ArrowUp: -ROW_HEIGHT,
-      PageDown: page,
-      PageUp: -page,
-    };
-    if (event.key in moves) {
-      this.scrollTo(this.logicalTop + (moves[event.key] as number));
-    } else if (event.key === 'Home') {
-      this.scrollTo(0);
-    } else if (event.key === 'End') {
-      this.scrollTo(Infinity);
-    } else if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
-      this.element.scrollLeft += event.key === 'ArrowRight' ? 40 : -40;
-    } else {
-      return;
+    const ctrl = event.ctrlKey || event.metaKey;
+    const { row, col } = this.focus;
+    const lastRow = this.total - 1;
+    const lastCol = this.info.columns.length - 1;
+    const page = Math.max(1, this.viewportRows() - 1);
+    const move = (r: number, c: number) => this.select({ row: r, col: c }, event.shiftKey);
+    switch (event.key) {
+      case 'ArrowDown':
+        move(ctrl ? lastRow : row + 1, col);
+        break;
+      case 'ArrowUp':
+        move(ctrl ? 0 : row - 1, col);
+        break;
+      case 'ArrowRight':
+        move(row, ctrl ? lastCol : col + 1);
+        break;
+      case 'ArrowLeft':
+        move(row, ctrl ? 0 : col - 1);
+        break;
+      case 'PageDown':
+        // The view moves a page too, so the active cell keeps its place on screen.
+        this.scrollTo(this.logicalTop + page * ROW_HEIGHT);
+        move(row + page, col);
+        break;
+      case 'PageUp':
+        this.scrollTo(this.logicalTop - page * ROW_HEIGHT);
+        move(row - page, col);
+        break;
+      case 'Home':
+        move(ctrl ? 0 : row, 0);
+        break;
+      case 'End':
+        move(ctrl ? lastRow : row, lastCol);
+        break;
+      case 'a':
+      case 'A':
+        if (!ctrl || event.shiftKey || event.altKey) return;
+        this.selectAll();
+        break;
+      case 'Escape': {
+        const { row1, col1, row2, col2 } = this.selection;
+        if (row1 === row2 && col1 === col2) return;
+        this.select(this.focus, false, false);
+        break;
+      }
+      default:
+        return;
     }
     event.preventDefault();
   }
 
-  private page(): number {
-    return Math.max(ROW_HEIGHT, (this.viewportRows() - 1) * ROW_HEIGHT);
+  private onMouseDown(event: MouseEvent): void {
+    if (event.button !== 0 || this.failed) return;
+    const hit = this.hit(event);
+    if (!hit) return;
+    // Keep the browser from selecting text, and take focus the way a click would have.
+    event.preventDefault();
+    this.element.focus({ preventScroll: true });
+    const lastRow = this.total - 1;
+    const lastCol = this.info.columns.length - 1;
+    const extend = event.shiftKey;
+    if (hit.header && hit.col < 0) {
+      this.selectAll();
+    } else if (hit.header) {
+      this.drag = 'columns';
+      const from = extend ? this.anchor.col : hit.col;
+      this.setSelection({ row: lastRow, col: from }, { row: 0, col: hit.col });
+    } else if (hit.col < 0) {
+      this.drag = 'rows';
+      const from = extend ? this.anchor.row : hit.row;
+      this.setSelection({ row: from, col: lastCol }, { row: hit.row, col: 0 });
+    } else {
+      this.drag = 'cells';
+      this.select(hit, extend);
+    }
+  }
+
+  private onMouseMove(event: MouseEvent): void {
+    if (!this.drag) return;
+    if ((event.buttons & 1) === 0) {
+      this.drag = undefined;
+      return;
+    }
+    const hit = this.hit(event);
+    if (!hit) return;
+    if (this.drag === 'columns' && hit.col >= 0) {
+      this.setSelection(this.anchor, { row: 0, col: hit.col });
+    } else if (this.drag === 'rows' && !hit.header) {
+      this.setSelection(this.anchor, { row: hit.row, col: 0 });
+    } else if (this.drag === 'cells' && !hit.header && hit.col >= 0) {
+      this.setSelection(this.anchor, hit);
+    }
+  }
+
+  /** The cell, row header or column header under the mouse; column -1 is the row headers. */
+  private hit(event: MouseEvent): (CellPosition & { header: boolean }) | undefined {
+    const target = (event.target as Element).closest<HTMLElement>('[data-col]');
+    if (!target || !this.element.contains(target)) return undefined;
+    const col = Number(target.dataset.col);
+    const row = target.closest<HTMLElement>('[data-row]');
+    if (row) return { row: Number(row.dataset.row), col, header: false };
+    return { row: 0, col, header: true };
+  }
+
+  private selectAll(): void {
+    this.setSelection(
+      { row: this.total - 1, col: this.info.columns.length - 1 },
+      { row: 0, col: 0 },
+    );
+  }
+
+  /** Moves the active cell, starting a new selection or extending the one there is. */
+  private select(target: CellPosition, extend: boolean, reveal = true): void {
+    this.focus = this.clamp(target);
+    if (!extend) this.anchor = { ...this.focus };
+    if (reveal) this.reveal(this.focus);
+    this.changed();
+  }
+
+  /** Selects a block without scrolling, as clicking a header does. */
+  private setSelection(anchor: CellPosition, focus: CellPosition): void {
+    this.anchor = this.clamp(anchor);
+    this.focus = this.clamp(focus);
+    this.changed();
+  }
+
+  private clamp({ row, col }: CellPosition): CellPosition {
+    return {
+      row: Math.max(0, Math.min(row, this.total - 1)),
+      col: Math.max(0, Math.min(col, this.info.columns.length - 1)),
+    };
+  }
+
+  private changed(): void {
+    this.paintHeader();
+    this.schedule();
+    this.events.onSelection();
+  }
+
+  /** Scrolls just enough to show a cell whole, below the header and right of the row headers. */
+  private reveal({ row, col }: CellPosition): void {
+    const top = row * ROW_HEIGHT;
+    const view = Math.max(ROW_HEIGHT, this.viewHeight());
+    if (top < this.logicalTop) {
+      this.scrollTo(top);
+    } else if (top + ROW_HEIGHT > this.logicalTop + view) {
+      this.scrollTo(top + ROW_HEIGHT - view);
+    }
+    const head = Math.round(this.rowHeaderWidth);
+    let left = head;
+    for (let c = 0; c < col; c++) left += this.widths[c] ?? 0;
+    const right = left + (this.widths[col] ?? 0);
+    const { scrollLeft, clientWidth } = this.element;
+    if (left < scrollLeft + head) {
+      this.element.scrollLeft = left - head;
+    } else if (right > scrollLeft + clientWidth) {
+      this.element.scrollLeft = Math.min(left - head, right - clientWidth);
+    }
+  }
+
+  private copy(event: ClipboardEvent): void {
+    // Text selected elsewhere, like in a message, copies as usual.
+    if (document.activeElement !== this.element || this.failed) return;
+    event.preventDefault();
+    if (this.total === 0) return;
+    const range = this.selection;
+    this.events.onCopy(range, range.row2 >= this.total - 1 && !this.exact);
   }
 
   private scrollTo(top: number): void {
@@ -211,28 +452,47 @@ export class DataGrid {
     this.layer.style.top = `${scrollTop + HEADER_HEIGHT + first * ROW_HEIGHT - this.logicalTop}px`;
     if (this.total === 0 && this.exact) {
       this.layer.innerHTML = `<div class="nl-grid-message">${escapeHtml(this.strings.noRows)}</div>`;
+      this.element.removeAttribute('aria-activedescendant');
       return;
     }
+    const selection = this.selection;
     let html = '';
     for (let position = first; position <= last; position++) {
-      html += this.rowHtml(position);
+      html += this.rowHtml(position, selection);
     }
     this.layer.innerHTML = html;
+    if (this.layer.querySelector(`#${ACTIVE_ID}`)) {
+      this.element.setAttribute('aria-activedescendant', ACTIVE_ID);
+    } else {
+      this.element.removeAttribute('aria-activedescendant');
+    }
   }
 
-  private rowHtml(position: number): string {
+  private rowHtml(position: number, selection: CellRange): string {
     const block = this.blocks.get(Math.floor(position / BLOCK));
     const index = position % BLOCK;
     const row = block?.rows[index];
+    const selected = position >= selection.row1 && position <= selection.row2;
+    const head = `nl-grid-cell nl-grid-rowhead${selected ? ' nl-grid-sel' : ''}`;
+    const open = `<div class="nl-grid-row" role="row" aria-rowindex="${position + 2}" data-row="${position}">`;
     if (!block || !row) {
-      return `<div class="nl-grid-row nl-grid-loading"><div class="nl-grid-cell nl-grid-rowhead"></div></div>`;
+      return `${open.replace('nl-grid-row', 'nl-grid-row nl-grid-loading')}<div class="${head}" role="rowheader" data-col="-1"></div></div>`;
     }
     const label = block.rowids ? block.rowids[index] : String(position + 1);
     const types = block.types[index];
-    let html = `<div class="nl-grid-row"><div class="nl-grid-cell nl-grid-rowhead">${escapeHtml(label)}</div>`;
+    let html = `${open}<div class="${head}" role="rowheader" data-col="-1">${escapeHtml(label)}</div>`;
     for (let c = 0; c < row.length; c++) {
       const cell = renderCell(row[c], types[c], this.locale);
-      html += `<div class="nl-grid-cell ${cell.className}" style="width:var(--w${c})">${cell.html}</div>`;
+      const inSelection = selected && c >= selection.col1 && c <= selection.col2;
+      const active = position === this.focus.row && c === this.focus.col;
+      let className = `nl-grid-cell ${cell.className}`;
+      if (inSelection) className += ' nl-grid-sel';
+      if (active) className += ' nl-grid-active';
+      html +=
+        `<div class="${className}" role="gridcell" aria-colindex="${c + 2}" data-col="${c}"` +
+        (active ? ` id="${ACTIVE_ID}"` : '') +
+        (inSelection ? ' aria-selected="true"' : '') +
+        ` style="width:var(--w${c})">${cell.html}</div>`;
     }
     return `${html}</div>`;
   }
@@ -241,7 +501,7 @@ export class DataGrid {
     for (let block = Math.floor(first / BLOCK); block <= Math.floor(last / BLOCK); block++) {
       if (!this.blocks.has(block) && !this.pending.has(block)) {
         this.pending.add(block);
-        this.request(block * BLOCK, BLOCK, this.total);
+        this.events.request(block * BLOCK, BLOCK, this.total);
       }
     }
   }
@@ -259,20 +519,29 @@ export class DataGrid {
 
   private renderHeader(): void {
     const corner = this.info.hasRowid ? this.strings.rowid : '#';
-    let html = `<div class="nl-grid-cell nl-grid-rowhead nl-grid-corner">${escapeHtml(corner)}</div>`;
+    let html = `<div class="nl-grid-cell nl-grid-rowhead nl-grid-corner" role="columnheader" aria-colindex="1" data-col="-1">${escapeHtml(corner)}</div>`;
     this.info.columns.forEach((column, c) => {
       const traits = [column.type, column.primaryKey ? this.strings.primaryKey : '']
         .filter(Boolean)
         .join(' · ');
       const title = traits ? `${column.name} — ${traits}` : column.name;
       html +=
-        `<div class="nl-grid-cell nl-grid-head" style="width:var(--w${c})" title="${escapeHtml(title)}">` +
+        `<div class="nl-grid-cell nl-grid-head" role="columnheader" aria-colindex="${c + 2}" data-col="${c}" style="width:var(--w${c})" title="${escapeHtml(title)}">` +
         `<span class="nl-grid-name">${escapeHtml(column.name)}</span>` +
         (column.primaryKey ? `<span class="nl-grid-key">${icons.index}</span>` : '') +
         (column.type ? `<span class="nl-grid-type">${escapeHtml(column.type)}</span>` : '') +
         '</div>';
     });
     this.header.innerHTML = html;
+    this.paintHeader();
+  }
+
+  /** Marks the headers of the selected columns. */
+  private paintHeader(): void {
+    const { col1, col2 } = this.selection;
+    this.header.querySelectorAll<HTMLElement>('.nl-grid-head').forEach((head, c) => {
+      head.classList.toggle('nl-grid-sel', c >= col1 && c <= col2);
+    });
   }
 
   /** Widens columns to fit the first rows, within limits, once they arrive. */
@@ -303,11 +572,13 @@ export class DataGrid {
   }
 
   private setWidths(widths: number[]): void {
-    let total = this.rowHeaderWidth;
-    widths.forEach((width, c) => {
-      const clamped = Math.round(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, width + 16)));
-      this.element.style.setProperty(`--w${c}`, `${clamped}px`);
-      total += clamped;
+    this.widths = widths.map((width) =>
+      Math.round(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, width + 16))),
+    );
+    let total = Math.round(this.rowHeaderWidth);
+    this.widths.forEach((width, c) => {
+      this.element.style.setProperty(`--w${c}`, `${width}px`);
+      total += width;
     });
     this.element.style.setProperty('--rowhead', `${Math.round(this.rowHeaderWidth)}px`);
     this.sizer.style.width = `${total}px`;

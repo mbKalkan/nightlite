@@ -24,7 +24,7 @@ export interface ShellEvents {
 
 type DataMessage = Extract<
   HostToWebviewMessage,
-  { type: 'objectInfo' | 'rowCount' | 'rowPage' | 'objectError' }
+  { type: 'objectInfo' | 'rowCount' | 'rowPage' | 'objectError' | 'copied' }
 >;
 
 /** The viewer's frame: the file name on top, the database's objects on the left, content right. */

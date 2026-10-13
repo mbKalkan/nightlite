@@ -52,6 +52,7 @@ window.addEventListener('message', (event: MessageEvent<HostToWebviewMessage>) =
     case 'rowCount':
     case 'rowPage':
     case 'objectError':
+    case 'copied':
       shell.dataMessage(message);
       break;
   }

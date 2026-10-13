@@ -30,3 +30,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Column headers show each column's declared type and primary key.
 - The status bar counts rows in the background and shows the estimate meanwhile.
 - **Data** and **Schema** tabs switch between a table's rows and the statement that created it.
+- Select cells as in a spreadsheet: click, <kbd>Shift</kbd>+click or drag; click a row or column
+  header for the whole row or column, or the corner for everything. Move with the arrow keys,
+  <kbd>Page Up</kbd>/<kbd>Page Down</kbd>, <kbd>Home</kbd>/<kbd>End</kbd> and <kbd>Ctrl</kbd> with
+  any of them; add <kbd>Shift</kbd> to extend; <kbd>Ctrl</kbd>+<kbd>A</kbd> selects all.
+- The status bar shows the selected cell's rowid, column, storage class and value, or the size of
+  the selection.
+- <kbd>Ctrl</kbd>+<kbd>C</kbd> copies the selection with full values, even where the grid cuts
+  them short: one cell as it is, more as tab-separated text that spreadsheets paste into columns,
+  BLOBs as hex. A copy holds up to a million rows or 16 MB.
