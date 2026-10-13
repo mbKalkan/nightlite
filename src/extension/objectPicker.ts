@@ -4,7 +4,7 @@ import type { ObjectType, SchemaObject } from '../shared/protocol';
 const ICONS: Record<ObjectType, string> = {
   table: 'table',
   view: 'eye',
-  index: 'list-ordered',
+  index: 'key',
   trigger: 'zap',
 };
 
