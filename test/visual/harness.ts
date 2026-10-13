@@ -2,6 +2,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type { Page } from '@playwright/test';
+import { readMbtiles, zoomCount, zoomRange } from '../../src/extension/database/mbtiles';
 import { TableReader } from '../../src/extension/database/rows';
 import { readSchema } from '../../src/extension/database/schema';
 import { connectionTarget } from '../../src/extension/database/target';
@@ -13,6 +14,7 @@ import type {
   ViewerStrings,
   WebviewToHostMessage,
 } from '../../src/shared/protocol';
+import { zoomLevels } from '../../src/shared/mbtiles';
 import { HEADER_SIZE, describeFile } from '../../src/shared/sqliteHeader';
 import { themes, type ThemeName } from './themes';
 
@@ -52,6 +54,10 @@ export async function openViewer(page: Page, theme: ThemeName) {
   const problems: string[] = [];
   const clipboard: string[] = [];
   let database: { db: DatabaseSync; readers: Map<string, TableReader>; count: boolean } | undefined;
+  const connection = () => {
+    if (!database) throw new Error('No database loaded');
+    return database.db;
+  };
   const reader = (name: string) => {
     if (!database) throw new Error('No database loaded');
     let found = database.readers.get(name);
@@ -74,6 +80,15 @@ export async function openViewer(page: Page, theme: ThemeName) {
         copy: async (name, range) => reader(name).copy(range),
         cell: async (name, row, total, column, rowid) =>
           reader(name).cell(row, total, column, rowid),
+        mbtiles: async () => readMbtiles(connection()),
+        zoomCounts: async (skip, onRange, onCount) => {
+          if (!database?.count) return new Promise<void>(() => {});
+          const range = zoomRange(connection());
+          onRange(range);
+          for (const zoom of range ? zoomLevels(range) : []) {
+            if (!skip.includes(zoom)) onCount(zoom, zoomCount(connection(), zoom));
+          }
+        },
       },
       post,
       async (text) => {

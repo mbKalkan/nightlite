@@ -285,6 +285,164 @@ body {
   color: var(--vscode-descriptionForeground);
 }
 
+/* The MBTiles summary */
+
+.nl-mbtiles-head {
+  margin-bottom: 8px;
+}
+
+/* The metadata and the file's facts line up, whatever their longest term. */
+.nl-mbtiles .nl-facts {
+  grid-template-columns: minmax(128px, max-content) 1fr;
+}
+
+.nl-mbtiles .nl-facts dd {
+  overflow-wrap: anywhere;
+}
+
+.nl-mbtiles-head .nl-title {
+  margin-bottom: 2px;
+}
+
+.nl-subtitle {
+  margin: 0;
+  color: var(--vscode-descriptionForeground);
+}
+
+.nl-description {
+  margin: 10px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.nl-section {
+  margin-top: 24px;
+}
+
+.nl-heading {
+  margin: 0 0 10px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--nl-border);
+  font-size: 1em;
+  font-weight: 600;
+}
+
+.nl-section .nl-note,
+.nl-warning {
+  margin: 8px 0 0;
+}
+
+.nl-warning {
+  padding-left: 8px;
+  border-left: 2px solid var(--vscode-editorWarning-foreground, var(--vscode-focusBorder));
+}
+
+.nl-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 16px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.nl-notice strong {
+  color: var(--vscode-foreground);
+}
+
+.nl-zoom-table {
+  display: grid;
+  grid-template-columns: max-content max-content minmax(80px, 1fr);
+  gap: 3px 20px;
+  align-items: center;
+  max-width: 640px;
+}
+
+.nl-zoom-row {
+  display: contents;
+}
+
+.nl-zoom-head span {
+  color: var(--vscode-descriptionForeground);
+  font-size: 12px;
+  text-align: right;
+}
+
+.nl-zoom-level,
+.nl-zoom-count {
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.nl-pending .nl-zoom-count {
+  color: var(--vscode-descriptionForeground);
+}
+
+.nl-zoom-bar {
+  height: 10px;
+}
+
+.nl-zoom-fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--vscode-focusBorder) 70%, transparent);
+}
+
+body.vscode-high-contrast .nl-zoom-fill {
+  background: var(--vscode-foreground);
+}
+
+.nl-layers {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nl-layer-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: baseline;
+}
+
+.nl-layer-name {
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-weight: 600;
+}
+
+.nl-layer-facts,
+.nl-layer-description {
+  color: var(--vscode-descriptionForeground);
+}
+
+.nl-layer-description {
+  margin: 2px 0 0;
+}
+
+.nl-layer-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin: 6px 0 0;
+}
+
+.nl-field {
+  display: inline-flex;
+  gap: 6px;
+  padding: 1px 6px;
+  border: 1px solid var(--nl-border);
+  border-radius: 3px;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 0.92em;
+}
+
+.nl-field-type {
+  color: var(--vscode-descriptionForeground);
+}
+
 .nl-sql {
   margin: 0;
   padding: 12px 14px;

@@ -3,26 +3,30 @@ import type {
   CopyRange,
   DatabaseHeader,
   FullCell,
+  MbtilesSummary,
   ObjectInfo,
   RowPage,
   SchemaObject,
+  ZoomRange,
 } from '../shared/protocol';
 import { DatabaseClient } from './database/client';
 import type { CopiedText } from './database/rows';
 import { connectionTarget } from './database/target';
+import { zoomLevels } from '../shared/mbtiles';
 import type { DatabaseBackend } from './requests';
 
 /**
  * An open database file, shared by every editor showing it. One worker reads the schema and
- * rows; counting, which can take seconds on big tables, has a worker of its own so it never
- * holds up scrolling, and is stopped by ending that worker.
+ * rows; counting, which can take seconds on big tables, runs on a worker of its own so it
+ * never holds up scrolling, one count at a time, and is stopped by ending that worker.
  */
 export class DatabaseDocument implements vscode.CustomDocument, DatabaseBackend {
   /** The header as last read, set by the first editor that loads the file. */
   header: DatabaseHeader | undefined;
   private reader: Promise<DatabaseClient> | undefined;
   private readerClient: DatabaseClient | undefined;
-  private counter: { client: DatabaseClient; name: string } | undefined;
+  private background: { client: DatabaseClient; key: string; job: Promise<unknown> } | undefined;
+  private zoomJobs = 0;
   private objects: Promise<SchemaObject[]> | undefined;
   private readonly counts = new Map<string, Promise<number>>();
 
@@ -64,32 +68,39 @@ export class DatabaseDocument implements vscode.CustomDocument, DatabaseBackend 
   count(name: string): Promise<number> {
     let count = this.counts.get(name);
     if (!count) {
-      // One count at a time: a new table's count stops the one still running.
-      if (this.counter && this.counter.name !== name) {
-        this.counter.client.dispose();
-        this.counter = undefined;
-      }
-      const client = (this.counter ??= { client: this.newClient(), name }).client;
-      count = client.open(this.target()).then(() => client.count(name));
-      count.then(
-        () => {
-          if (this.counter?.client === client) {
-            this.counter = undefined;
-            client.dispose();
-          }
-        },
-        () => this.counts.delete(name),
-      );
+      count = this.inBackground(`count:${name}`, (client) => client.count(name));
+      count.catch(() => this.counts.delete(name));
       this.counts.set(name, count);
     }
     return count;
   }
 
+  async mbtiles(): Promise<MbtilesSummary> {
+    return (await this.open()).mbtiles();
+  }
+
+  /** Counts tiles by zoom level in the background, each level as it's counted. */
+  zoomCounts(
+    skip: number[],
+    onRange: (range: ZoomRange | null) => void,
+    onCount: (zoom: number, count: number) => void,
+  ): Promise<void> {
+    // Each request starts over, so a reopened view hears every level it asks for.
+    return this.inBackground(`zooms:${++this.zoomJobs}`, async (client) => {
+      const range = await client.zoomRange();
+      onRange(range);
+      if (!range) return;
+      for (const zoom of zoomLevels(range)) {
+        if (!skip.includes(zoom)) onCount(zoom, await client.zoomCount(zoom));
+      }
+    });
+  }
+
   dispose(): void {
     this.readerClient?.dispose();
-    this.counter?.client.dispose();
+    this.background?.client.dispose();
     this.readerClient = undefined;
-    this.counter = undefined;
+    this.background = undefined;
     this.reader = undefined;
     this.objects = undefined;
     this.counts.clear();
@@ -109,6 +120,26 @@ export class DatabaseDocument implements vscode.CustomDocument, DatabaseBackend 
       }
     })();
     return this.reader;
+  }
+
+  /**
+   * Runs a slow job on a worker of its own, one job at a time: another job ends the running
+   * one's worker. The same job asked for again joins the running one.
+   */
+  private inBackground<T>(key: string, job: (client: DatabaseClient) => Promise<T>): Promise<T> {
+    if (this.background?.key === key) return this.background.job as Promise<T>;
+    this.background?.client.dispose();
+    const client = this.newClient();
+    const running = client.open(this.target()).then(() => job(client));
+    this.background = { client, key, job: running };
+    const finish = () => {
+      if (this.background?.client === client) {
+        this.background = undefined;
+        client.dispose();
+      }
+    };
+    running.then(finish, finish);
+    return running;
   }
 
   private newClient(): DatabaseClient {

@@ -2,9 +2,11 @@ import type {
   CopyRange,
   FullCell,
   HostToWebviewMessage,
+  MbtilesSummary,
   ObjectInfo,
   RowPage,
   WebviewToHostMessage,
+  ZoomRange,
 } from '../shared/protocol';
 import type { CopiedText } from './database/rows';
 import { classifyDatabaseError } from './databaseErrors';
@@ -17,6 +19,13 @@ export interface DatabaseBackend {
   count(name: string): Promise<number>;
   copy(name: string, range: CopyRange): Promise<CopiedText>;
   cell(name: string, row: number, total: number, column: number, rowid?: string): Promise<FullCell>;
+  mbtiles(): Promise<MbtilesSummary>;
+  /** Slow on big tilesets; dropped when another count starts. */
+  zoomCounts(
+    skip: number[],
+    onRange: (range: ZoomRange | null) => void,
+    onCount: (zoom: number, count: number) => void,
+  ): Promise<void>;
 }
 
 type Post = (message: HostToWebviewMessage) => Thenable<boolean> | Promise<unknown>;
@@ -24,7 +33,7 @@ type Post = (message: HostToWebviewMessage) => Thenable<boolean> | Promise<unkno
 /** Writes the system clipboard, which only the extension host can do while the webview waits. */
 export type WriteClipboard = (text: string) => Thenable<void> | Promise<void>;
 
-/** Answers `openObject`, `rows`, `copy` and `cell`; other messages are left to the caller. */
+/** Answers questions about the database's contents; other messages are left to the caller. */
 export async function answer(
   message: WebviewToHostMessage,
   backend: DatabaseBackend,
@@ -65,6 +74,28 @@ export async function answer(
         });
       }
       return;
+    case 'mbtiles':
+      try {
+        await post({ type: 'mbtiles', summary: await backend.mbtiles() });
+      } catch (error) {
+        await post({ type: 'mbtilesError', ...classifyDatabaseError(error) });
+      }
+      return;
+    case 'zoomCounts': {
+      let complete = false;
+      try {
+        await backend.zoomCounts(
+          message.skip,
+          (range) => void post({ type: 'zoomRange', range }),
+          (zoom, count) => void post({ type: 'zoomCount', zoom, count }),
+        );
+        complete = true;
+      } catch {
+        // Stopped for another count, or failed; the levels counted so far stay.
+      }
+      await post({ type: 'zoomCountsEnd', complete });
+      return;
+    }
     case 'cell':
       try {
         const cell = await backend.cell(

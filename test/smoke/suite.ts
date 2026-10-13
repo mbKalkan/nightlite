@@ -5,6 +5,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { DatabaseClient } from '../../src/extension/database/client';
 import { connectionTarget } from '../../src/extension/database/target';
+import { DatabaseDocument } from '../../src/extension/databaseDocument';
 
 const EXTENSION_ID = 'MBKDevStudio.nightlite';
 const VIEW_TYPE = 'nightlite.viewer';
@@ -87,6 +88,39 @@ const tests: Record<string, () => Promise<void>> = {
       assert.deepEqual(cell, { type: 'i', text: '5000', length: 4 });
     } finally {
       client.dispose();
+    }
+  },
+
+  async 'counts tiles by zoom level in the background, and stops for a table count'() {
+    const document = new DatabaseDocument(
+      vscode.Uri.file(path.join(FIXTURES, 'sample.mbtiles')),
+      WORKER,
+    );
+    try {
+      const summary = await document.mbtiles();
+      assert.equal(summary.tiles, 'table');
+      assert.ok(summary.metadata?.some(([name]) => name === 'json'));
+      const counts: number[] = [];
+      let range: unknown;
+      await document.zoomCounts(
+        [],
+        (found) => (range = found),
+        (zoom, count) => (counts[zoom] = count),
+      );
+      assert.deepEqual(range, { min: 0, max: 2 });
+      assert.deepEqual(counts, [1, 4, 16]);
+
+      // A table's count takes the background worker; the zoom counts give way.
+      const zooms = document.zoomCounts(
+        [],
+        () => {},
+        () => {},
+      );
+      const tiles = document.count('tiles');
+      await assert.rejects(zooms);
+      assert.equal(await tiles, 21);
+    } finally {
+      document.dispose();
     }
   },
 

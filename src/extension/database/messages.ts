@@ -9,7 +9,10 @@ export type WorkerCall =
   | { type: 'rows'; name: string; start: number; count: number; total: number }
   | { type: 'count'; name: string }
   | { type: 'copy'; name: string; range: CopyRange }
-  | { type: 'cell'; name: string; row: number; total: number; column: number; rowid?: string };
+  | { type: 'cell'; name: string; row: number; total: number; column: number; rowid?: string }
+  | { type: 'mbtiles' }
+  | { type: 'zoomRange' }
+  | { type: 'zoomCount'; zoom: number };
 
 export type WorkerRequest = WorkerCall & { id: number };
 

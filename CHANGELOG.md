@@ -44,3 +44,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   button to copy the value. Open it from the toolbar, with <kbd>Enter</kbd> or by double-clicking
   a cell; <kbd>Escape</kbd> goes back to the grid. Drag its edge to resize it; it remembers its
   width and whether it was open.
+- MBTiles open on a summary of the tileset: its name, description and kind (vector or raster),
+  tiles by zoom level counted in the background (71 million tiles in about a second and a half),
+  its vector layers with their fields, zoom levels and, where the tileset records them, feature
+  counts, and its metadata as the MBTiles 1.3 spec reads it. Missing or unreadable keys, and zoom
+  levels the tiles contradict, are pointed out. Deduplicated tilesets, where `tiles` is a view,
+  are recognized.

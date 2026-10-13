@@ -176,6 +176,44 @@ export interface ViewerStrings {
   showingCharacters: string;
   showingBytes: string;
   cellErrorTitle: string;
+  /** The MBTiles summary: its sections and what they say. */
+  tilesHeading: string;
+  zoomColumn: string;
+  tileCount: string;
+  oneTile: string;
+  tilesAtZooms: string;
+  tilesAtZoom: string;
+  countingTiles: string;
+  countFailed: string;
+  noTiles: string;
+  noTilesTable: string;
+  tilesIsView: string;
+  minzoomMismatch: string;
+  maxzoomMismatch: string;
+  layersHeading: string;
+  layerZoom: string;
+  layerFeatures: string;
+  noFields: string;
+  metadataHeading: string;
+  mdName: string;
+  mdDescription: string;
+  mdFormat: string;
+  mdType: string;
+  mdVersion: string;
+  mdZoom: string;
+  mdBounds: string;
+  mdCenter: string;
+  mdAttribution: string;
+  boundsValue: string;
+  centerValue: string;
+  centerZoom: string;
+  vectorTiles: string;
+  rasterTiles: string;
+  missingMetadata: string;
+  invalidMetadata: string;
+  noMetadata: string;
+  fileHeading: string;
+  mbtilesErrorTitle: string;
 }
 
 export interface LoadMessage {
@@ -283,6 +321,49 @@ export interface CellValueMessage {
   cell: FullCell;
 }
 
+/** What an MBTiles file says about itself, answering `mbtiles`. */
+export interface MbtilesSummary {
+  /** The metadata table's rows as text; null when there is no metadata table. */
+  metadata: [string, string][] | null;
+  /** A table as the spec has it, a view over deduplicated tiles, or none at all. */
+  tiles: 'table' | 'view' | 'virtual' | null;
+}
+
+export interface ZoomRange {
+  min: number;
+  max: number;
+}
+
+export interface MbtilesMessage {
+  type: 'mbtiles';
+  summary: MbtilesSummary;
+}
+
+export interface MbtilesErrorMessage {
+  type: 'mbtilesError';
+  error: DatabaseError;
+  detail: string;
+}
+
+/** Tiles by zoom level, counted in the background: the range first, then each level. */
+export interface ZoomRangeMessage {
+  type: 'zoomRange';
+  /** Null when there are no tiles. */
+  range: ZoomRange | null;
+}
+
+export interface ZoomCountMessage {
+  type: 'zoomCount';
+  zoom: number;
+  count: number;
+}
+
+/** Counting ended: every level counted, or stopped for another count or an error. */
+export interface ZoomCountsEndMessage {
+  type: 'zoomCountsEnd';
+  complete: boolean;
+}
+
 /** The selection is on the clipboard, answering `copy`. */
 export interface CopiedMessage {
   type: 'copied';
@@ -302,7 +383,12 @@ export type HostToWebviewMessage =
   | RowPageMessage
   | ObjectErrorMessage
   | CopiedMessage
-  | CellValueMessage;
+  | CellValueMessage
+  | MbtilesMessage
+  | MbtilesErrorMessage
+  | ZoomRangeMessage
+  | ZoomCountMessage
+  | ZoomCountsEndMessage;
 
 export type WebviewToHostMessage =
   | { type: 'ready' }
@@ -313,6 +399,10 @@ export type WebviewToHostMessage =
   /** Copies full values as tab-separated text; the extension host writes the clipboard. */
   | { type: 'copy'; request: number; name: string; range: CopyRange }
   /** Asks for one cell's value, by its row's rowid when known, else by position. */
+  /** Asks for an MBTiles file's metadata. */
+  | { type: 'mbtiles' }
+  /** Starts counting tiles by zoom level, leaving out levels already counted. */
+  | { type: 'zoomCounts'; skip: number[] }
   | {
       type: 'cell';
       request: number;
