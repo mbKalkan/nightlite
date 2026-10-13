@@ -415,6 +415,52 @@ body.vscode-high-contrast .nl-sql-keyword {
   outline-offset: -1px;
 }
 
+/* Icon buttons, as in VS Code's toolbars. */
+
+.nl-icon-button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--vscode-icon-foreground, var(--vscode-foreground));
+  cursor: pointer;
+}
+
+.nl-icon-button[hidden] {
+  display: none;
+}
+
+.nl-icon-button:hover:not(:disabled) {
+  background: var(--vscode-toolbar-hoverBackground);
+  outline: 1px dashed var(--vscode-toolbar-hoverOutline, transparent);
+  outline-offset: -1px;
+}
+
+.nl-icon-button[aria-pressed='true'] {
+  background: var(--vscode-toolbar-activeBackground, var(--vscode-toolbar-hoverBackground));
+  box-shadow: inset 0 0 0 1px var(--vscode-inputOption-activeBorder, transparent);
+}
+
+.nl-icon-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.nl-icon-button:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+.nl-detail-toggle {
+  margin-left: 4px;
+}
+
 /* Rows */
 
 .nl-data {
@@ -429,6 +475,7 @@ body.vscode-high-contrast .nl-sql-keyword {
   --nl-accent: var(--vscode-focusBorder, #0078d4);
   position: relative;
   flex: 1;
+  min-width: 0;
   min-height: 0;
   overflow: auto;
   outline: none;
@@ -601,6 +648,174 @@ body.vscode-high-contrast .nl-grid {
 
 .nl-grid-message strong {
   color: var(--vscode-foreground);
+}
+
+.nl-data-main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Cell detail: the selected cell in full, beside the rows. */
+
+.nl-detail {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex: 0 0 clamp(300px, 40%, 640px);
+  flex-direction: column;
+  min-width: 0;
+  border-left: 1px solid var(--nl-border);
+  background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+}
+
+.nl-detail[hidden] {
+  display: none;
+}
+
+/* The sash on the panel's left edge, lit on hover as VS Code's are. */
+.nl-detail-sash {
+  position: absolute;
+  inset: 0 auto 0 -2px;
+  z-index: 5;
+  width: 4px;
+  outline: none;
+  cursor: ew-resize;
+  touch-action: none;
+  transition: background-color 0.1s ease-out;
+}
+
+.nl-detail-sash:hover,
+.nl-detail-sash:focus-visible,
+.nl-detail-sash.nl-active {
+  background: var(--vscode-sash-hoverBorder, var(--vscode-focusBorder));
+  transition-delay: 0.3s;
+}
+
+.nl-detail-sash.nl-active,
+.nl-detail-sash:focus-visible {
+  transition-delay: 0s;
+}
+
+.nl-detail-head {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  align-items: center;
+  height: 26px;
+  padding: 0 4px 0 12px;
+  border-bottom: 1px solid var(--nl-border);
+}
+
+.nl-detail-heading {
+  display: flex;
+  flex: 1;
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.nl-detail-title {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+
+.nl-detail-place,
+.nl-detail-facts,
+.nl-detail-note {
+  color: var(--vscode-descriptionForeground);
+  font-size: 12px;
+}
+
+.nl-detail-facts {
+  flex: none;
+  padding: 6px 12px 0;
+}
+
+.nl-detail-facts:empty,
+.nl-detail-note:empty {
+  display: none;
+}
+
+.nl-detail-note {
+  flex: none;
+  padding: 4px 12px 0;
+}
+
+.nl-detail-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  padding: 8px 12px 12px;
+  overflow: auto;
+  outline: none;
+  user-select: text;
+}
+
+.nl-detail-body:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+.nl-detail-body pre {
+  margin: 0;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: var(--vscode-editor-font-size, 13px);
+  line-height: 1.5;
+}
+
+.nl-detail-text,
+.nl-detail-json {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.nl-detail-hex {
+  white-space: pre;
+}
+
+.nl-detail-empty {
+  margin: 0;
+  color: var(--vscode-descriptionForeground);
+}
+
+.nl-detail-error {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.nl-detail-error strong {
+  color: var(--vscode-foreground);
+}
+
+.nl-json-key {
+  color: var(--vscode-debugTokenExpression-name, inherit);
+}
+
+.nl-json-string {
+  color: var(--vscode-debugTokenExpression-string, inherit);
+}
+
+.nl-json-number {
+  color: var(--vscode-debugTokenExpression-number, inherit);
+}
+
+.nl-json-literal {
+  color: var(--vscode-debugTokenExpression-boolean, inherit);
+}
+
+/* High-contrast themes keep text in the theme's own colors; keys stand out by weight. */
+body.vscode-high-contrast .nl-detail-json span {
+  color: inherit;
+}
+
+body.vscode-high-contrast .nl-json-key {
+  font-weight: 600;
 }
 
 .nl-footer {

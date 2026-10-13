@@ -8,6 +8,7 @@ import type {
   WebviewToHostMessage,
 } from '../shared/protocol';
 import { DataView } from './dataView';
+import { icons } from './icons';
 import { ObjectTree, objectKey, type EntryKey } from './objectTree';
 import { databaseErrorMessage, element, messageView, objectView, overviewView } from './views';
 
@@ -19,18 +20,23 @@ export interface ShellEvents {
   onSelect(key: EntryKey): void;
   /** The user switched between Data and Schema. */
   onTab(tab: PageTab): void;
+  /** The user opened or closed the cell detail panel. */
+  onDetail(open: boolean): void;
+  /** The user resized the cell detail panel. */
+  onDetailWidth(width: number): void;
   send(message: WebviewToHostMessage): void;
 }
 
 type DataMessage = Extract<
   HostToWebviewMessage,
-  { type: 'objectInfo' | 'rowCount' | 'rowPage' | 'objectError' | 'copied' }
+  { type: 'objectInfo' | 'rowCount' | 'rowPage' | 'objectError' | 'copied' | 'cellValue' }
 >;
 
 /** The viewer's frame: the file name on top, the database's objects on the left, content right. */
 export class Shell {
   private readonly fileName: HTMLElement;
   private readonly tabs: HTMLElement;
+  private readonly detailToggle: HTMLElement;
   private readonly sidebar: HTMLElement;
   private readonly content: HTMLElement;
   private file: { info: FileInfo; locale: string; strings: ViewerStrings } | undefined;
@@ -39,12 +45,18 @@ export class Shell {
   private schemaError: { error: DatabaseError; detail: string } | undefined;
   private shown: EntryKey = 'overview';
   private data: DataView | undefined;
+  private tab: PageTab;
+  private detail: boolean;
+  private detailWidth: number | undefined;
 
   constructor(
     root: HTMLElement,
     private readonly events: ShellEvents,
-    private tab: PageTab,
+    initial: { tab: PageTab; detail: boolean; detailWidth?: number },
   ) {
+    this.tab = initial.tab;
+    this.detail = initial.detail;
+    this.detailWidth = initial.detailWidth;
     root.innerHTML = `
       <div class="nl-shell">
         <header class="nl-toolbar">
@@ -53,6 +65,7 @@ export class Shell {
             <button type="button" class="nl-tab" role="tab" data-tab="data"></button>
             <button type="button" class="nl-tab" role="tab" data-tab="schema"></button>
           </div>
+          <button type="button" class="nl-icon-button nl-detail-toggle" hidden>${icons.panelRight}</button>
         </header>
         <div class="nl-body">
           <nav class="nl-sidebar" hidden></nav>
@@ -61,6 +74,8 @@ export class Shell {
       </div>`;
     this.fileName = root.querySelector('.nl-file-name') as HTMLElement;
     this.tabs = root.querySelector('.nl-tabs') as HTMLElement;
+    this.detailToggle = root.querySelector('.nl-detail-toggle') as HTMLElement;
+    this.detailToggle.addEventListener('click', () => this.data?.setDetail(!this.detail));
     this.sidebar = root.querySelector('.nl-sidebar') as HTMLElement;
     this.content = root.querySelector('.nl-content') as HTMLElement;
     this.tabs.addEventListener('click', (event) => {
@@ -84,6 +99,9 @@ export class Shell {
     for (const button of this.tabs.querySelectorAll<HTMLElement>('[data-tab]')) {
       button.textContent = button.dataset.tab === 'data' ? strings.data : strings.schema;
     }
+    this.detailToggle.title = strings.cellDetail;
+    this.detailToggle.setAttribute('aria-label', strings.cellDetail);
+    this.markDetail();
     this.show('overview');
     // Until the schema arrives the database is still opening.
     this.content.setAttribute('aria-busy', 'true');
@@ -121,6 +139,7 @@ export class Shell {
     this.setFileName(fileName);
     this.sidebar.hidden = true;
     this.tabs.hidden = true;
+    this.detailToggle.hidden = true;
     const messages: Record<LoadError, string> = {
       empty: strings.errorEmpty,
       notSqlite: strings.errorNotSqlite,
@@ -154,9 +173,26 @@ export class Shell {
     const hasRows = object?.type === 'table' || object?.type === 'view';
     this.tabs.hidden = !hasRows;
     this.markTab();
+    this.detailToggle.hidden = !(object && hasRows && this.tab === 'data');
     if (object && hasRows && this.tab === 'data') {
-      this.data = new DataView(object.name, strings, locale, (message) =>
-        this.events.send(message),
+      this.data = new DataView(
+        object.name,
+        strings,
+        locale,
+        (message) => this.events.send(message),
+        {
+          detail: this.detail,
+          onDetail: (open) => {
+            this.detail = open;
+            this.markDetail();
+            this.events.onDetail(open);
+          },
+          detailWidth: this.detailWidth,
+          onDetailWidth: (width) => {
+            this.detailWidth = width;
+            this.events.onDetailWidth(width);
+          },
+        },
       );
       this.content.replaceChildren(this.data.element);
       return;
@@ -187,6 +223,10 @@ export class Shell {
     if (focus) {
       this.tabs.querySelector<HTMLElement>(`[data-tab="${tab}"]`)?.focus();
     }
+  }
+
+  private markDetail(): void {
+    this.detailToggle.setAttribute('aria-pressed', String(this.detail));
   }
 
   private markTab(): void {

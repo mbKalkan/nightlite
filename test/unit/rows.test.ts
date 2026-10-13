@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterAll, describe, expect, it } from 'vitest';
 import { TableReader, TEXT_LIMIT, quote } from '../../src/extension/database/rows';
-import { COPY_LIMIT } from '../../src/shared/values';
+import { COPY_LIMIT, DETAIL_BYTES } from '../../src/shared/values';
 
 const sample = new DatabaseSync('test/fixtures/sample.sqlite', { readOnly: true });
 const scratch = mkdtempSync(join(tmpdir(), 'nightlite-rows-'));
@@ -211,6 +211,35 @@ describe('TableReader.copy', () => {
       expect(huge.text).toHaveLength(COPY_LIMIT);
     } finally {
       big.close();
+    }
+  });
+});
+
+describe('TableReader.cell', () => {
+  it('reads one value in full, by rowid or by position', () => {
+    const reader = new TableReader(sample, 'value_kinds');
+    expect(reader.cell(11, 18, 2, '12')).toMatchObject({ type: 't', length: 11200 });
+    expect(reader.cell(11, 18, 2, '12').text).toHaveLength(11200);
+    expect(reader.cell(3, 18, 2)).toEqual({ type: 'i', text: '9007199254740993', length: 16 });
+    expect(reader.cell(2, 18, 2)).toMatchObject({ type: 'f', text: '42.0' });
+    expect(reader.cell(17, 18, 2)).toEqual({ type: 'n', text: '', length: 0 });
+    expect(reader.cell(16, 18, 2).text).toMatch(/^89504e47/);
+    const view = new TableReader(sample, 'album_list');
+    expect(view.cell(0, 5, 0)).toEqual({ type: 't', text: 'Pastel Blues', length: 12 });
+  });
+
+  it('reads only the first bytes of a big BLOB', () => {
+    const path = join(scratch, 'blob.db');
+    const db = new DatabaseSync(path);
+    db.exec('CREATE TABLE t (b BLOB); INSERT INTO t VALUES (zeroblob(100000));');
+    db.close();
+    const blobs = new DatabaseSync(path, { readOnly: true });
+    try {
+      const cell = new TableReader(blobs, 't').cell(0, 1, 0);
+      expect(cell).toMatchObject({ type: 'b', length: 100000 });
+      expect(cell.text).toHaveLength(DETAIL_BYTES * 2);
+    } finally {
+      blobs.close();
     }
   });
 });

@@ -83,6 +83,8 @@ const tests: Record<string, () => Promise<void>> = {
         stopped: false,
         cut: false,
       });
+      const cell = await client.cell('events', 4999, 5000, 0, '5000');
+      assert.deepEqual(cell, { type: 'i', text: '5000', length: 4 });
     } finally {
       client.dispose();
     }

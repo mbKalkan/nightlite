@@ -2,6 +2,9 @@
 export const COPY_LIMIT = 16 * 1024 * 1024;
 /** The most rows a copy holds, about what a spreadsheet takes; Export is for more. */
 export const COPY_ROWS = 1_000_000;
+/** How much of a value the cell detail shows: a megabyte of text, 4 KB of a BLOB in hex. */
+export const DETAIL_TEXT = 1024 * 1024;
+export const DETAIL_BYTES = 4096;
 
 /** A REAL as text: one that happens to be whole still reads as a real, as SQLite prints it. */
 export function realText(value: number): string {

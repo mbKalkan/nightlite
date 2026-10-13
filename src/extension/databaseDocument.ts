@@ -2,6 +2,7 @@ import type * as vscode from 'vscode';
 import type {
   CopyRange,
   DatabaseHeader,
+  FullCell,
   ObjectInfo,
   RowPage,
   SchemaObject,
@@ -48,6 +49,16 @@ export class DatabaseDocument implements vscode.CustomDocument, DatabaseBackend 
 
   async copy(name: string, range: CopyRange): Promise<CopiedText> {
     return (await this.open()).copy(name, range);
+  }
+
+  async cell(
+    name: string,
+    row: number,
+    total: number,
+    column: number,
+    rowid?: string,
+  ): Promise<FullCell> {
+    return (await this.open()).cell(name, row, total, column, rowid);
   }
 
   count(name: string): Promise<number> {

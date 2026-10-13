@@ -166,6 +166,16 @@ export interface ViewerStrings {
   copiedStopped: string;
   copiedCut: string;
   copyFailed: string;
+  /** The cell detail panel: its name, the toolbar button that shows it, and its parts. */
+  cellDetail: string;
+  resizeDetail: string;
+  copyValue: string;
+  close: string;
+  noCell: string;
+  /** `{0}` is a number of characters, or a size. */
+  showingCharacters: string;
+  showingBytes: string;
+  cellErrorTitle: string;
 }
 
 export interface LoadMessage {
@@ -254,6 +264,25 @@ export interface CopyResult {
   cut: boolean;
 }
 
+/**
+ * One cell's value for the detail panel, as text: numbers as the grid shows them, text up to
+ * DETAIL_TEXT characters, a BLOB's first DETAIL_BYTES bytes as hex. `length` is the whole
+ * value's, in characters or bytes.
+ */
+export interface FullCell {
+  type: string;
+  text: string;
+  length: number;
+}
+
+/** A cell's value, answering `cell`. */
+export interface CellValueMessage {
+  type: 'cellValue';
+  request: number;
+  name: string;
+  cell: FullCell;
+}
+
 /** The selection is on the clipboard, answering `copy`. */
 export interface CopiedMessage {
   type: 'copied';
@@ -272,7 +301,8 @@ export type HostToWebviewMessage =
   | RowCountMessage
   | RowPageMessage
   | ObjectErrorMessage
-  | CopiedMessage;
+  | CopiedMessage
+  | CellValueMessage;
 
 export type WebviewToHostMessage =
   | { type: 'ready' }
@@ -281,4 +311,14 @@ export type WebviewToHostMessage =
   /** Asks for `count` rows from position `start`; `total` is the row count the grid assumes. */
   | { type: 'rows'; request: number; name: string; start: number; count: number; total: number }
   /** Copies full values as tab-separated text; the extension host writes the clipboard. */
-  | { type: 'copy'; request: number; name: string; range: CopyRange };
+  | { type: 'copy'; request: number; name: string; range: CopyRange }
+  /** Asks for one cell's value, by its row's rowid when known, else by position. */
+  | {
+      type: 'cell';
+      request: number;
+      name: string;
+      row: number;
+      total: number;
+      column: number;
+      rowid?: string;
+    };

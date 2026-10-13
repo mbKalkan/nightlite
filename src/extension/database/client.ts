@@ -1,5 +1,5 @@
 import { Worker } from 'node:worker_threads';
-import type { CopyRange, ObjectInfo, RowPage, SchemaObject } from '../../shared/protocol';
+import type { CopyRange, FullCell, ObjectInfo, RowPage, SchemaObject } from '../../shared/protocol';
 import type { WorkerCall, WorkerFailure, WorkerResponse } from './messages';
 import type { CopiedText } from './rows';
 
@@ -49,6 +49,16 @@ export class DatabaseClient {
 
   copy(name: string, range: CopyRange): Promise<CopiedText> {
     return this.call({ type: 'copy', name, range }) as Promise<CopiedText>;
+  }
+
+  cell(
+    name: string,
+    row: number,
+    total: number,
+    column: number,
+    rowid?: string,
+  ): Promise<FullCell> {
+    return this.call({ type: 'cell', name, row, total, column, rowid }) as Promise<FullCell>;
   }
 
   dispose(): void {

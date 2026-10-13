@@ -72,6 +72,8 @@ export async function openViewer(page: Page, theme: ThemeName) {
         count: (name) =>
           database?.count ? Promise.resolve(reader(name).count()) : new Promise<number>(() => {}),
         copy: async (name, range) => reader(name).copy(range),
+        cell: async (name, row, total, column, rowid) =>
+          reader(name).cell(row, total, column, rowid),
       },
       post,
       async (text) => {

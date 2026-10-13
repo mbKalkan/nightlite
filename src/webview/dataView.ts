@@ -1,41 +1,49 @@
 import type {
+  CellValue,
   CopyResult,
+  FullCell,
   HostToWebviewMessage,
   ViewerStrings,
   WebviewToHostMessage,
 } from '../shared/protocol';
 import { formatBytes, formatCount } from '../shared/units';
-import { COPY_LIMIT, COPY_ROWS } from '../shared/values';
-import { cellText } from './grid/cells';
+import { COPY_LIMIT, COPY_ROWS, realText } from '../shared/values';
+import { CellDetail, type CellPlace } from './detail/cellDetail';
+import { STORAGE_CLASSES, cellText } from './grid/cells';
 import { DataGrid, type CellRange } from './grid/dataGrid';
 import { databaseErrorMessage, element, format } from './views';
 
 type DataMessage = Extract<
   HostToWebviewMessage,
-  { type: 'objectInfo' | 'rowCount' | 'rowPage' | 'objectError' | 'copied' }
+  { type: 'objectInfo' | 'rowCount' | 'rowPage' | 'objectError' | 'copied' | 'cellValue' }
 >;
 
-/** SQLite's names for the storage classes, by the letter rows carry them as. */
-const STORAGE_CLASSES: Record<string, string> = {
-  n: 'NULL',
-  i: 'INTEGER',
-  f: 'REAL',
-  t: 'TEXT',
-  b: 'BLOB',
-};
+export interface DataViewOptions {
+  /** Whether the cell detail panel is open. */
+  detail: boolean;
+  /** The panel was opened or closed from inside the view. */
+  onDetail(open: boolean): void;
+  /** The panel's width as last resized, in pixels. */
+  detailWidth?: number;
+  onDetailWidth(width: number): void;
+}
+
 /** The status bar shows this much of a value; the cell detail shows the rest. */
 const PREVIEW = 200;
 /** How long a copy's confirmation stays in the status bar. */
 const NOTE_TIME = 4000;
 /** A copy taking longer than this says it's under way. */
 const SLOW_COPY = 250;
+/** Values the panel asks the host for wait this long, so holding an arrow key asks once. */
+const DETAIL_DELAY = 80;
 
 let nextRequest = 1;
 
 /**
  * A table's or view's rows: asks the extension host for the columns, then rows as the grid
- * scrolls, and shows the selection and the row and column counts below. Answers for another
- * object, or for requests made before this view, are ignored.
+ * scrolls, and shows the selection and the row and column counts below, and the selected
+ * cell in full beside the grid when asked. Answers for another object, or for requests made
+ * before this view, are ignored.
  */
 export class DataView {
   readonly element: HTMLElement;
@@ -43,7 +51,15 @@ export class DataView {
   private readonly selectionStatus: HTMLElement;
   private readonly note: HTMLElement;
   private readonly counts: HTMLElement;
+  private readonly main: HTMLElement;
   private grid: DataGrid | undefined;
+  private detail: CellDetail | undefined;
+  private detailOpen: boolean;
+  /** The cell the panel shows, so a repeated selection event doesn't ask again. */
+  private detailKey = '';
+  private detailPlace: CellPlace = { column: '', row: undefined };
+  private detailRequest = 0;
+  private detailTimer = 0;
   private readonly requests = new Set<number>();
   private readonly copies = new Set<number>();
   private columns = 0;
@@ -56,8 +72,11 @@ export class DataView {
     private readonly strings: ViewerStrings,
     private readonly locale: string,
     private readonly send: (message: WebviewToHostMessage) => void,
+    private readonly options: DataViewOptions,
   ) {
+    this.detailOpen = options.detail;
     this.element = element('div', 'nl-data');
+    this.main = element('div', 'nl-data-main');
     this.footer = element('div', 'nl-footer');
     this.selectionStatus = element('span', 'nl-status-selection');
     this.note = element('span', 'nl-status-note');
@@ -87,12 +106,40 @@ export class DataView {
             this.send({ type: 'rows', request, name: this.name, start, count, total });
           },
           onTotal: (total, exact) => this.showCounts(total, exact),
-          onSelection: () => this.showSelection(),
+          onSelection: () => {
+            this.showSelection();
+            this.updateDetail();
+          },
           onCopy: (range, toEnd) => this.copy(range, toEnd),
+          onEnter: () => this.setDetail(true, true),
         });
-        this.element.replaceChildren(this.grid.element, this.footer);
+        this.detail = new CellDetail(
+          this.strings,
+          this.locale,
+          {
+            copy: () => {
+              const cell = this.grid?.activeCell;
+              if (cell)
+                this.copy(
+                  { row1: cell.row, col1: cell.col, row2: cell.row, col2: cell.col },
+                  false,
+                );
+            },
+            close: () => {
+              this.setDetail(false);
+              this.focus();
+            },
+            leave: () => this.focus(),
+            resized: (width) => this.options.onDetailWidth(width),
+          },
+          this.options.detailWidth,
+        );
+        this.detail.element.hidden = !this.detailOpen;
+        this.main.replaceChildren(this.grid.element, this.detail.element);
+        this.element.replaceChildren(this.main, this.footer);
         this.showCounts(message.info.estimate ?? 0, false);
         this.showSelection();
+        this.updateDetail();
         break;
       case 'rowCount':
         this.grid?.setTotal(message.count, true);
@@ -100,6 +147,12 @@ export class DataView {
       case 'rowPage':
         if (this.requests.delete(message.request)) {
           this.grid?.receive(message.page);
+        }
+        break;
+      case 'cellValue':
+        if (message.request === this.detailRequest) {
+          this.detailRequest = 0;
+          this.detail?.show(this.detailPlace, message.cell);
         }
         break;
       case 'copied':
@@ -113,9 +166,20 @@ export class DataView {
           this.showNote(format(this.strings.copyFailed, text));
           return;
         }
+        if (message.request !== undefined && message.request === this.detailRequest) {
+          this.detailRequest = 0;
+          this.detail?.fail(
+            this.detailPlace,
+            this.strings.cellErrorTitle,
+            `${text} ${message.detail}`,
+          );
+          return;
+        }
         if (message.request !== undefined && !this.requests.delete(message.request)) return;
         if (this.grid) {
           this.grid.fail(this.strings.rowsErrorTitle, `${text} ${message.detail}`);
+          this.detailKey = '';
+          this.detail?.clear();
         } else {
           const box = element('div', 'nl-grid-message');
           box.setAttribute('role', 'alert');
@@ -135,9 +199,23 @@ export class DataView {
     this.grid?.element.focus();
   }
 
+  /** Opens or closes the cell detail panel; `focus` puts the keyboard in it. */
+  setDetail(open: boolean, focus = false): void {
+    if (open !== this.detailOpen) {
+      this.detailOpen = open;
+      this.options.onDetail(open);
+    }
+    if (!this.detail) return;
+    this.detail.element.hidden = !open;
+    this.detailKey = '';
+    this.updateDetail();
+    if (open && focus) this.detail.focus();
+  }
+
   dispose(): void {
     clearTimeout(this.noteTimer);
     clearTimeout(this.copyTimer);
+    clearTimeout(this.detailTimer);
     this.grid?.dispose();
     this.element.remove();
   }
@@ -234,6 +312,53 @@ export class DataView {
     this.selectionStatus.replaceChildren(...parts);
   }
 
+  /**
+   * Shows the active cell in the panel: at once when the grid holds all of it, else after
+   * asking the host for the rest of long text or a BLOB's bytes.
+   */
+  private updateDetail(): void {
+    const { grid, detail } = this;
+    if (!grid || !detail || !this.detailOpen) return;
+    if (grid.rowCount.total === 0 || this.columns === 0) {
+      this.detailKey = '';
+      detail.clear();
+      return;
+    }
+    const { row, col } = grid.activeCell;
+    const local = grid.cell(row, col);
+    const key = `${row}:${col}:${local ? 'read' : 'waiting'}`;
+    if (key === this.detailKey) return;
+    this.detailKey = key;
+    clearTimeout(this.detailTimer);
+    this.detailRequest = 0;
+    const label = grid.rowLabel(row);
+    this.detailPlace = {
+      column: grid.columnName(col) ?? '',
+      row: label === undefined ? undefined : this.rowText(label),
+    };
+    const full = local && wholeCell(local.value, local.type);
+    if (full) {
+      detail.show(this.detailPlace, full);
+      return;
+    }
+    detail.loading(this.detailPlace);
+    // Rows still on their way come back through onSelection.
+    if (!local) return;
+    this.detailTimer = window.setTimeout(() => {
+      const request = nextRequest++;
+      this.detailRequest = request;
+      this.send({
+        type: 'cell',
+        request,
+        name: this.name,
+        row,
+        total: grid.rowCount.total,
+        column: col,
+        rowid: grid.hasRowid ? label : undefined,
+      });
+    }, DETAIL_DELAY);
+  }
+
   private rowText(label: string): string {
     return this.grid?.hasRowid ? `${this.strings.rowid} ${label}` : `#${label}`;
   }
@@ -262,5 +387,28 @@ export class DataView {
     }
     this.counts.textContent = `${rows} · ${this.columnsText(this.columns)}`;
     this.showSelection();
+  }
+}
+
+/** A cell as the panel shows it, when the grid already holds all of it. */
+function wholeCell(value: CellValue, type: string): FullCell | undefined {
+  switch (type) {
+    case 'n':
+      return { type, text: '', length: 0 };
+    case 'i':
+      return { type, text: String(value), length: String(value).length };
+    case 'f': {
+      const text = typeof value === 'number' ? realText(value) : String(value);
+      return { type, text, length: text.length };
+    }
+    case 'b': {
+      // Small BLOBs arrive whole: their first bytes are all of them.
+      const blob = value as { size: number; head: string };
+      return blob.head.length / 2 >= blob.size
+        ? { type, text: blob.head, length: blob.size }
+        : undefined;
+    }
+    default:
+      return typeof value === 'string' ? { type, text: value, length: value.length } : undefined;
   }
 }
