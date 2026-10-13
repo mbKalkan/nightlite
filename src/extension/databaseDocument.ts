@@ -1,15 +1,22 @@
 import type * as vscode from 'vscode';
-import type { DatabaseError, DatabaseHeader, SchemaObject } from '../shared/protocol';
-import { DatabaseClient, DatabaseFailure } from './database/client';
+import type { DatabaseHeader, ObjectInfo, RowPage, SchemaObject } from '../shared/protocol';
+import { DatabaseClient } from './database/client';
 import { connectionTarget } from './database/target';
+import type { DatabaseBackend } from './requests';
 
-/** An open database file: one worker connection shared by every editor showing it. */
-export class DatabaseDocument implements vscode.CustomDocument {
+/**
+ * An open database file, shared by every editor showing it. One worker reads the schema and
+ * rows; counting, which can take seconds on big tables, has a worker of its own so it never
+ * holds up scrolling, and is stopped by ending that worker.
+ */
+export class DatabaseDocument implements vscode.CustomDocument, DatabaseBackend {
   /** The header as last read, set by the first editor that loads the file. */
   header: DatabaseHeader | undefined;
-  private client: DatabaseClient | undefined;
-  private opening: Promise<DatabaseClient> | undefined;
+  private reader: Promise<DatabaseClient> | undefined;
+  private readerClient: DatabaseClient | undefined;
+  private counter: { client: DatabaseClient; name: string } | undefined;
   private objects: Promise<SchemaObject[]> | undefined;
+  private readonly counts = new Map<string, Promise<number>>();
 
   constructor(
     readonly uri: vscode.Uri,
@@ -19,24 +26,59 @@ export class DatabaseDocument implements vscode.CustomDocument {
   /** Opens the database on first use and reads its schema once for every editor. */
   schema(header: DatabaseHeader): Promise<SchemaObject[]> {
     this.header = header;
-    this.objects ??= this.open(header).then((client) => client.schema());
+    this.objects ??= this.open().then((client) => client.schema());
     this.objects.catch(() => (this.objects = undefined));
     return this.objects;
   }
 
-  dispose(): void {
-    this.client?.dispose();
-    this.client = undefined;
-    this.opening = undefined;
-    this.objects = undefined;
+  async objectInfo(name: string): Promise<ObjectInfo> {
+    return (await this.open()).objectInfo(name);
   }
 
-  private open(header: DatabaseHeader): Promise<DatabaseClient> {
-    this.opening ??= (async () => {
-      const client = new DatabaseClient(this.workerScript);
-      this.client = client;
+  async rows(name: string, start: number, count: number, total: number): Promise<RowPage> {
+    return (await this.open()).rows(name, start, count, total);
+  }
+
+  count(name: string): Promise<number> {
+    let count = this.counts.get(name);
+    if (!count) {
+      // One count at a time: a new table's count stops the one still running.
+      if (this.counter && this.counter.name !== name) {
+        this.counter.client.dispose();
+        this.counter = undefined;
+      }
+      const client = (this.counter ??= { client: this.newClient(), name }).client;
+      count = client.open(this.target()).then(() => client.count(name));
+      count.then(
+        () => {
+          if (this.counter?.client === client) {
+            this.counter = undefined;
+            client.dispose();
+          }
+        },
+        () => this.counts.delete(name),
+      );
+      this.counts.set(name, count);
+    }
+    return count;
+  }
+
+  dispose(): void {
+    this.readerClient?.dispose();
+    this.counter?.client.dispose();
+    this.readerClient = undefined;
+    this.counter = undefined;
+    this.reader = undefined;
+    this.objects = undefined;
+    this.counts.clear();
+  }
+
+  private open(): Promise<DatabaseClient> {
+    this.reader ??= (async () => {
+      const client = this.newClient();
+      this.readerClient = client;
       try {
-        await client.open(connectionTarget(this.uri.fsPath, header.wal));
+        await client.open(this.target());
         return client;
       } catch (error) {
         // Let a later attempt, after the file changes, start over.
@@ -44,31 +86,14 @@ export class DatabaseDocument implements vscode.CustomDocument {
         throw error;
       }
     })();
-    return this.opening;
+    return this.reader;
   }
-}
 
-/** SQLite's primary result codes that the viewer explains in its own words. */
-const SQLITE_BUSY = 5;
-const SQLITE_LOCKED = 6;
-const SQLITE_CANTOPEN = 14;
-const SQLITE_CORRUPT = 11;
-const SQLITE_NOTADB = 26;
+  private newClient(): DatabaseClient {
+    return new DatabaseClient(this.workerScript);
+  }
 
-export function classifyDatabaseError(error: unknown): { error: DatabaseError; detail: string } {
-  const detail = error instanceof Error ? error.message : String(error);
-  const code = error instanceof DatabaseFailure ? error.code & 0xff : 0;
-  switch (code) {
-    case SQLITE_CORRUPT:
-      return { error: 'damaged', detail };
-    case SQLITE_NOTADB:
-      return { error: 'notSqlite', detail };
-    case SQLITE_BUSY:
-    case SQLITE_LOCKED:
-      return { error: 'locked', detail };
-    case SQLITE_CANTOPEN:
-      return { error: 'unreadable', detail };
-    default:
-      return { error: 'other', detail };
+  private target(): string {
+    return connectionTarget(this.uri.fsPath, this.header?.wal ?? false);
   }
 }

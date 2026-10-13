@@ -4,6 +4,8 @@ import type { WebviewToHostMessage } from '../shared/protocol';
 export interface ViewState {
   /** The sidebar entry last shown. */
   selected?: string;
+  /** Whether tables open on their rows or their schema. */
+  tab?: 'data' | 'schema';
 }
 
 interface VsCodeApi {

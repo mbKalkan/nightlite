@@ -40,5 +40,18 @@
   "The database file is damaged.": "Veritabanı dosyası bozuk.",
   "Another program is writing to the database right now. Reopen it when that program is done.": "Şu anda başka bir program veritabanına yazıyor. O program işini bitirince yeniden açın.",
   "SQLite reported a problem with this database.": "SQLite bu veritabanında bir sorun bildirdi.",
-  "Go to a table, view, index or trigger": "Bir tabloya, görünüme, dizine ya da tetikleyiciye git"
+  "Go to a table, view, index or trigger": "Bir tabloya, görünüme, dizine ya da tetikleyiciye git",
+  "Show": "Göster",
+  "Data": "Veri",
+  "Schema": "Şema",
+  "Rows of {0}": "{0} satırları",
+  "{0} rows": "{0} satır",
+  "1 row": "1 satır",
+  "About {0} rows": "Yaklaşık {0} satır",
+  "counting…": "sayılıyor…",
+  "{0} columns": "{0} sütun",
+  "This table has no rows.": "Bu tabloda satır yok.",
+  "rowid": "rowid",
+  "Primary key": "Birincil anahtar",
+  "These rows couldn't be read": "Bu satırlar okunamadı"
 }

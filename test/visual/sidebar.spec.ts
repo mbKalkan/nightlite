@@ -7,6 +7,8 @@ const SCREENS = 'test-results/screens';
 
 const item = (page: Page, key: string) => page.locator(`.nl-tree-item[data-key="${key}"]`);
 const selected = (page: Page) => page.locator('.nl-tree-item[aria-selected="true"]');
+const tab = (page: Page, name: 'Data' | 'Schema') => page.getByRole('tab', { name });
+const grid = (page: Page, name: string) => page.locator(`.nl-grid[aria-label="Rows of ${name}"]`);
 
 for (const theme of ['dark', 'light', 'hcDark', 'hcLight'] as ThemeName[]) {
   test(`lists the database objects and shows one's schema (${theme})`, async ({ page }) => {
@@ -23,6 +25,7 @@ for (const theme of ['dark', 'light', 'hcDark', 'hcLight'] as ThemeName[]) {
     await expect(selected(page)).toHaveAttribute('data-key', 'overview');
 
     await item(page, 'table:albums').click();
+    await tab(page, 'Schema').click();
     await expect(page.locator('.nl-object .nl-title')).toHaveText('albums');
     await expect(page.locator('.nl-traits')).toHaveText('Table');
     await expect(page.locator('.nl-sql-keyword').first()).toHaveText('CREATE');
@@ -42,7 +45,7 @@ test('moves through the tree with the keyboard, as VS Code lists do', async ({ p
   await expect(selected(page)).toHaveAttribute('data-key', 'overview');
   await page.keyboard.press('ArrowDown');
   await expect(selected(page)).toHaveAttribute('data-key', 'table:album_tags');
-  await expect(page.locator('.nl-object .nl-title')).toHaveText('album_tags');
+  await expect(grid(page, 'album_tags')).toBeVisible();
 
   // Left goes up to the group, then folds it; Right unfolds it again.
   await page.keyboard.press('ArrowLeft');
@@ -71,7 +74,7 @@ test('shows what Go to Table picked and puts the keyboard there', async ({ page 
 
   await expect(selected(page)).toHaveAttribute('data-key', 'view:album_list');
   await expect(page.locator('.nl-tree-item:focus')).toHaveAttribute('data-key', 'view:album_list');
-  await expect(page.locator('.nl-traits')).toHaveText('View');
+  await expect(grid(page, 'album_list')).toBeVisible();
 });
 
 test('keeps the shown object when the schema arrives again', async ({ page }) => {
@@ -86,6 +89,7 @@ test('names the traits of a table', async ({ page }) => {
   const viewer = await openViewer(page, 'dark');
   await viewer.load('sample.sqlite');
   await item(page, 'table:tags').click();
+  await tab(page, 'Schema').click();
   await expect(page.locator('.nl-traits')).toHaveText(/Table.*WITHOUT ROWID/);
   await item(page, 'table:typed').click();
   await expect(page.locator('.nl-traits')).toHaveText(/Table.*STRICT/);
@@ -124,6 +128,7 @@ test('keeps AAA text contrast for schemas in high-contrast themes', async ({ pag
     const viewer = await openViewer(page, theme);
     await viewer.load('sample.sqlite');
     await item(page, 'table:albums').click();
+    await tab(page, 'Schema').click();
     expect(await lowestTextContrast(page), theme).toBeGreaterThanOrEqual(7);
   }
 });

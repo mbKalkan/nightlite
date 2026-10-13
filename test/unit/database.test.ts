@@ -7,7 +7,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { DatabaseFailure } from '../../src/extension/database/client';
 import { readSchema } from '../../src/extension/database/schema';
 import { connectionTarget } from '../../src/extension/database/target';
-import { classifyDatabaseError } from '../../src/extension/databaseDocument';
+import { classifyDatabaseError } from '../../src/extension/databaseErrors';
 
 const scratch = mkdtempSync(join(tmpdir(), 'nightlite-test-'));
 afterAll(() => rmSync(scratch, { recursive: true, force: true }));

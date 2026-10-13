@@ -3,19 +3,28 @@
 import { DatabaseSync } from 'node:sqlite';
 import { parentPort } from 'node:worker_threads';
 import type { WorkerCall, WorkerRequest, WorkerResponse } from './messages';
+import { TableReader } from './rows';
 import { readSchema } from './schema';
 
 let db: DatabaseSync | undefined;
+const readers = new Map<string, TableReader>();
 
 function handle(call: WorkerCall): unknown {
   switch (call.type) {
     case 'open':
+      readers.clear();
       db?.close();
       // Read-only: SQLite refuses every write, and load_extension stays off by default.
       db = new DatabaseSync(call.target, { readOnly: true, timeout: 2000 });
       return null;
     case 'schema':
       return readSchema(connection());
+    case 'objectInfo':
+      return reader(call.name).info;
+    case 'rows':
+      return reader(call.name).page(call.start, call.count, call.total);
+    case 'count':
+      return reader(call.name).count();
   }
 }
 
@@ -24,6 +33,15 @@ function connection(): DatabaseSync {
     throw new Error('The database is not open');
   }
   return db;
+}
+
+function reader(name: string): TableReader {
+  let found = readers.get(name);
+  if (!found) {
+    found = new TableReader(connection(), name);
+    readers.set(name, found);
+  }
+  return found;
 }
 
 parentPort?.on('message', (request: WorkerRequest) => {

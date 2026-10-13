@@ -59,6 +59,21 @@ const tests: Record<string, () => Promise<void>> = {
     }
   },
 
+  async 'reads rows and counts them in worker threads'() {
+    const client = new DatabaseClient(WORKER);
+    try {
+      await client.open(path.join(FIXTURES, 'sample.sqlite'));
+      const info = await client.objectInfo('events');
+      assert.equal(info.estimate, 5000);
+      const page = await client.rows('events', 4900, 100, 5000);
+      assert.equal(page.rows.length, 100);
+      assert.equal(page.rowids?.[99], '5000');
+      assert.equal(await client.count('events'), 5000);
+    } finally {
+      client.dispose();
+    }
+  },
+
   async 'opens a WAL database without creating files next to it'() {
     const file = path.join(FIXTURES, 'wal.sqlite');
     const client = new DatabaseClient(WORKER);
