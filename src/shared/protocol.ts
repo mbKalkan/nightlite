@@ -57,6 +57,41 @@ export interface ColumnInfo {
   generated: boolean;
 }
 
+export interface IndexSummary {
+  name: string;
+  unique: boolean;
+  /** Made by CREATE INDEX (c), or by SQLite for a UNIQUE (u) or PRIMARY KEY (pk) constraint. */
+  origin: 'c' | 'u' | 'pk';
+  partial: boolean;
+  /** Column names; null for an expression. */
+  columns: (string | null)[];
+}
+
+export interface ForeignKey {
+  table: string;
+  from: string[];
+  /** The referenced columns; null where the key refers to the other table's primary key. */
+  to: (string | null)[];
+  onUpdate: string;
+  onDelete: string;
+}
+
+export interface IndexColumn {
+  /** Null for an expression. */
+  name: string | null;
+  descending: boolean;
+  collation: string;
+}
+
+/** What the Schema page lists beside the CREATE statement, answering `objectDetails`. */
+export interface ObjectDetails {
+  columns?: (ColumnInfo & { hidden: boolean })[];
+  indexes?: IndexSummary[];
+  foreignKeys?: ForeignKey[];
+  /** An index's own key columns. */
+  indexColumns?: IndexColumn[];
+}
+
 /** What the grid needs to know about a table or view before reading its rows. */
 export interface ObjectInfo {
   name: string;
@@ -176,6 +211,17 @@ export interface ViewerStrings {
   showingCharacters: string;
   showingBytes: string;
   cellErrorTitle: string;
+  /** The Schema page's lists beside the CREATE statement. */
+  columnsHeading: string;
+  foreignKeysHeading: string;
+  statementHeading: string;
+  nameColumn: string;
+  typeColumn: string;
+  constraintsColumn: string;
+  expression: string;
+  automaticIndex: string;
+  partialIndex: string;
+  detailsErrorTitle: string;
   /** The MBTiles summary: its sections and what they say. */
   tilesHeading: string;
   zoomColumn: string;
@@ -321,6 +367,19 @@ export interface CellValueMessage {
   cell: FullCell;
 }
 
+export interface ObjectDetailsMessage {
+  type: 'objectDetails';
+  name: string;
+  details: ObjectDetails;
+}
+
+export interface ObjectDetailsErrorMessage {
+  type: 'objectDetailsError';
+  name: string;
+  error: DatabaseError;
+  detail: string;
+}
+
 /** What an MBTiles file says about itself, answering `mbtiles`. */
 export interface MbtilesSummary {
   /** The metadata table's rows as text; null when there is no metadata table. */
@@ -388,7 +447,9 @@ export type HostToWebviewMessage =
   | MbtilesErrorMessage
   | ZoomRangeMessage
   | ZoomCountMessage
-  | ZoomCountsEndMessage;
+  | ZoomCountsEndMessage
+  | ObjectDetailsMessage
+  | ObjectDetailsErrorMessage;
 
 export type WebviewToHostMessage =
   | { type: 'ready' }
@@ -399,6 +460,8 @@ export type WebviewToHostMessage =
   /** Copies full values as tab-separated text; the extension host writes the clipboard. */
   | { type: 'copy'; request: number; name: string; range: CopyRange }
   /** Asks for one cell's value, by its row's rowid when known, else by position. */
+  /** Asks for an object's columns, indexes and foreign keys, for its Schema page. */
+  | { type: 'objectDetails'; name: string }
   /** Asks for an MBTiles file's metadata. */
   | { type: 'mbtiles' }
   /** Starts counting tiles by zoom level, leaving out levels already counted. */

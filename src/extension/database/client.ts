@@ -3,6 +3,7 @@ import type {
   CopyRange,
   FullCell,
   MbtilesSummary,
+  ObjectDetails,
   ObjectInfo,
   RowPage,
   SchemaObject,
@@ -67,6 +68,10 @@ export class DatabaseClient {
     rowid?: string,
   ): Promise<FullCell> {
     return this.call({ type: 'cell', name, row, total, column, rowid }) as Promise<FullCell>;
+  }
+
+  objectDetails(name: string): Promise<ObjectDetails> {
+    return this.call({ type: 'objectDetails', name }) as Promise<ObjectDetails>;
   }
 
   mbtiles(): Promise<MbtilesSummary> {

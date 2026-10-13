@@ -107,5 +107,13 @@
   "File": "Dosya",
   "The tileset's metadata couldn't be read": "Karo setinin metadata'sı okunamadı",
   "The metadata says minzoom {0}; the tiles start at zoom {1}.": "Metadata minzoom {0} diyor; karolar zoom {1}'den başlıyor.",
-  "The metadata says maxzoom {0}; the tiles go up to zoom {1}.": "Metadata maxzoom {0} diyor; karolar zoom {1}'e kadar çıkıyor."
+  "The metadata says maxzoom {0}; the tiles go up to zoom {1}.": "Metadata maxzoom {0} diyor; karolar zoom {1}'e kadar çıkıyor.",
+  "Columns": "Sütunlar",
+  "Foreign keys": "Yabancı anahtarlar",
+  "Statement": "İfade",
+  "Constraints": "Kısıtlar",
+  "(expression)": "(ifade)",
+  "automatic, for {0}": "otomatik, {0} için",
+  "partial": "kısmi",
+  "The columns and indexes couldn't be read": "Sütunlar ve dizinler okunamadı"
 }
