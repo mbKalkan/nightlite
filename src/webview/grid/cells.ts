@@ -2,6 +2,15 @@ import type { CellValue } from '../../shared/protocol';
 import { formatBytes } from '../../shared/units';
 import { realText } from '../../shared/values';
 
+/** SQLite's names for the storage classes, by the letter rows carry them as. */
+export const STORAGE_CLASSES: Record<string, string> = {
+  n: 'NULL',
+  i: 'INTEGER',
+  f: 'REAL',
+  t: 'TEXT',
+  b: 'BLOB',
+};
+
 /** What a BLOB holds, told from its first bytes; undefined when it isn't a known kind. */
 export function blobKind(head: string): string | undefined {
   const starts = (hex: string) => head.startsWith(hex);

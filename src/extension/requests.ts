@@ -1,5 +1,6 @@
 import type {
   CopyRange,
+  FullCell,
   HostToWebviewMessage,
   ObjectInfo,
   RowPage,
@@ -15,6 +16,7 @@ export interface DatabaseBackend {
   /** May be slow on big tables, and is dropped when another count starts. */
   count(name: string): Promise<number>;
   copy(name: string, range: CopyRange): Promise<CopiedText>;
+  cell(name: string, row: number, total: number, column: number, rowid?: string): Promise<FullCell>;
 }
 
 type Post = (message: HostToWebviewMessage) => Thenable<boolean> | Promise<unknown>;
@@ -22,7 +24,7 @@ type Post = (message: HostToWebviewMessage) => Thenable<boolean> | Promise<unkno
 /** Writes the system clipboard, which only the extension host can do while the webview waits. */
 export type WriteClipboard = (text: string) => Thenable<void> | Promise<void>;
 
-/** Answers `openObject`, `rows` and `copy`; other messages are left to the caller. */
+/** Answers `openObject`, `rows`, `copy` and `cell`; other messages are left to the caller. */
 export async function answer(
   message: WebviewToHostMessage,
   backend: DatabaseBackend,
@@ -54,6 +56,25 @@ export async function answer(
       try {
         const page = await backend.rows(message.name, message.start, message.count, message.total);
         await post({ type: 'rowPage', request: message.request, name: message.name, page });
+      } catch (error) {
+        await post({
+          type: 'objectError',
+          name: message.name,
+          request: message.request,
+          ...classifyDatabaseError(error),
+        });
+      }
+      return;
+    case 'cell':
+      try {
+        const cell = await backend.cell(
+          message.name,
+          message.row,
+          message.total,
+          message.column,
+          message.rowid,
+        );
+        await post({ type: 'cellValue', request: message.request, name: message.name, cell });
       } catch (error) {
         await post({
           type: 'objectError',

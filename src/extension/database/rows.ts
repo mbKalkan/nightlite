@@ -4,10 +4,18 @@ import type {
   ColumnInfo,
   CopyRange,
   CopyResult,
+  FullCell,
   ObjectInfo,
   RowPage,
 } from '../../shared/protocol';
-import { COPY_LIMIT, COPY_ROWS, realText, tsvField } from '../../shared/values';
+import {
+  COPY_LIMIT,
+  COPY_ROWS,
+  DETAIL_BYTES,
+  DETAIL_TEXT,
+  realText,
+  tsvField,
+} from '../../shared/values';
 
 /** Text longer than this is cut for the grid; the cell says how long it really is. */
 export const TEXT_LIMIT = 1000;
@@ -210,6 +218,36 @@ export class TableReader {
       stopped,
       cut,
     };
+  }
+
+  /**
+   * One cell's value for the detail panel: by its row's rowid when the grid knows it, else
+   * found by position the way `page` finds rows.
+   */
+  cell(position: number, total: number, column: number, rowid?: string): FullCell {
+    const columns = this.info.columns.slice(column, column + 1);
+    const select = `SELECT ${valueList(columns, DETAIL_TEXT, DETAIL_BYTES)} ${this.from}`;
+    let row: unknown[] | undefined;
+    if (this.info.hasRowid && (rowid !== undefined || this.span)) {
+      const id = rowid !== undefined ? BigInt(rowid) : this.rowidAt(position, total);
+      row = id === undefined ? undefined : this.one(`${select} WHERE rowid = ?`, [id]);
+    } else {
+      row = this.one(`${select} LIMIT 1 OFFSET ?`, [position]);
+    }
+    if (!row || columns.length === 0) return { type: 'n', text: '', length: 0 };
+    const kind = row[0] as string;
+    return {
+      type: STORAGE_CLASSES[kind] ?? 't',
+      text: copyText(kind, row[1]),
+      length: Number(row[2] ?? 0),
+    };
+  }
+
+  private one(sql: string, params: SQLInputValue[]): unknown[] | undefined {
+    const statement = this.db.prepare(sql);
+    statement.setReadBigInts(true);
+    statement.setReturnArrays(true);
+    return statement.get(...params) as unknown[] | undefined;
   }
 
   /** The rowid at a grid position, found the way `page` finds the first row of a page. */

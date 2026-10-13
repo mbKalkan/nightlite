@@ -39,3 +39,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - <kbd>Ctrl</kbd>+<kbd>C</kbd> copies the selection with full values, even where the grid cuts
   them short: one cell as it is, more as tab-separated text that spreadsheets paste into columns,
   BLOBs as hex. A copy holds up to a million rows or 16 MB.
+- A cell detail panel beside the rows shows the selected cell in full: JSON indented and colored
+  (numbers keep every digit), long text wrapped, BLOBs as a hex dump with what they hold, and a
+  button to copy the value. Open it from the toolbar, with <kbd>Enter</kbd> or by double-clicking
+  a cell; <kbd>Escape</kbd> goes back to the grid. Drag its edge to resize it; it remembers its
+  width and whether it was open.

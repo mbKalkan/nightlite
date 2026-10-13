@@ -8,7 +8,8 @@ export type WorkerCall =
   | { type: 'objectInfo'; name: string }
   | { type: 'rows'; name: string; start: number; count: number; total: number }
   | { type: 'count'; name: string }
-  | { type: 'copy'; name: string; range: CopyRange };
+  | { type: 'copy'; name: string; range: CopyRange }
+  | { type: 'cell'; name: string; row: number; total: number; column: number; rowid?: string };
 
 export type WorkerRequest = WorkerCall & { id: number };
 

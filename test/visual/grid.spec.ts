@@ -284,3 +284,110 @@ test('reaches any of ten million rows at once', async ({ page }) => {
   );
   expect(viewer.problems).toEqual([]);
 });
+
+const detail = (page: Page) => page.locator('.nl-detail');
+const detailToggle = (page: Page) => page.locator('.nl-detail-toggle');
+const facts = (page: Page) => page.locator('.nl-detail-facts');
+const shown = (page: Page, selector: string) =>
+  page.locator(`.nl-detail-body ${selector}`).evaluate((el) => el.textContent);
+
+for (const theme of ['dark', 'light', 'hcDark', 'hcLight'] as ThemeName[]) {
+  test(`shows the selected cell in full beside the rows (${theme})`, async ({ page }) => {
+    const viewer = await openViewer(page, theme);
+    await viewer.load('sample.sqlite');
+    await open(page, 'table:value_kinds');
+    await expect(detail(page)).toBeHidden();
+
+    await cell(page, '13', 2).click();
+    await page.keyboard.press('Enter');
+    await expect(detail(page)).toBeVisible();
+    await expect(detailToggle(page)).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.nl-detail-title')).toHaveText('value');
+    await expect(page.locator('.nl-detail-place')).toHaveText('rowid 13');
+    await expect(facts(page)).toHaveText('TEXT · 41 characters');
+    expect(await shown(page, '.nl-detail-json')).toBe(
+      '{\n  "a": 1,\n  "b": [\n    true,\n    null,\n    "x"\n  ],\n  "c": {\n    "d": 2.5\n  }\n}',
+    );
+    await expect(page.locator('.nl-json-key').first()).toHaveText('"a"');
+    // Enter puts the keyboard in the panel; Escape brings it back to the grid.
+    await expect(page.locator('.nl-detail-body')).toBeFocused();
+    await page.screenshot({ path: `${SCREENS}/detail-json-${theme}.png` });
+    await page.keyboard.press('Escape');
+    await expect(grid(page)).toBeFocused();
+    expect(viewer.problems).toEqual([]);
+  });
+}
+
+test('shows long text, BLOBs, NULL and big integers in full, and copies them', async ({ page }) => {
+  const viewer = await openViewer(page, 'dark');
+  await viewer.load('sample.sqlite');
+  await open(page, 'table:value_kinds');
+  await detailToggle(page).click();
+  await expect(detail(page)).toBeVisible();
+
+  // The grid holds 1,000 characters of this; the panel asks the host for the rest.
+  await cell(page, '12', 2).click();
+  await expect(facts(page)).toHaveText('TEXT · 11,200 characters');
+  await expect.poll(async () => (await shown(page, '.nl-detail-text'))?.length).toBe(11200);
+
+  // The grid holds 48 bytes of this PNG; the panel shows all 84.
+  await cell(page, '17', 2).click();
+  await expect(facts(page)).toHaveText('BLOB · PNG · 84 B');
+  await expect
+    .poll(() => shown(page, '.nl-detail-hex'))
+    .toMatch(
+      /^00000000 {2}89 50 4e 47 0d 0a 1a 0a {2}\.PNG\.{4}\n00000008 {2}00 00 00 0d 49 48 44 52 {2}\.{4}IHDR\n/,
+    );
+  expect((await shown(page, '.nl-detail-hex'))?.split('\n')).toHaveLength(11);
+  await page.screenshot({ path: `${SCREENS}/detail-blob-dark.png` });
+
+  await page.keyboard.press('ArrowDown');
+  await expect(facts(page)).toHaveText('NULL');
+  await expect(page.locator('.nl-detail-body .nl-null')).toHaveText('NULL');
+
+  await cell(page, '4', 2).click();
+  await expect(facts(page)).toHaveText('INTEGER');
+  expect(await shown(page, '.nl-detail-value')).toBe('9007199254740993');
+  await page.getByRole('button', { name: 'Copy value' }).click();
+  await expect(note(page)).toHaveText('Copied the value.');
+  expect(viewer.clipboard.at(-1)).toBe('9007199254740993');
+
+  // The panel stays open for the next table, and closes from its own button.
+  await open(page, 'table:artists');
+  await expect(page.locator('.nl-detail-title')).toHaveText('id');
+  await expect(facts(page)).toHaveText('INTEGER');
+  await page.getByRole('button', { name: 'Close' }).click();
+  await expect(detail(page)).toBeHidden();
+  await expect(detailToggle(page)).toHaveAttribute('aria-pressed', 'false');
+  await expect(grid(page)).toBeFocused();
+  expect(viewer.problems).toEqual([]);
+});
+
+test('resizes the cell detail panel by its sash, and keeps the width', async ({ page }) => {
+  const viewer = await openViewer(page, 'dark');
+  await viewer.load('sample.sqlite');
+  await open(page, 'table:value_kinds');
+  await detailToggle(page).click();
+  const width = () => detail(page).evaluate((el) => el.getBoundingClientRect().width);
+  // Within a pixel: widths are rounded as they're set.
+  const near = (actual: number, expected: number) =>
+    expect(Math.abs(actual - expected)).toBeLessThanOrEqual(1);
+  const before = await width();
+  const sash = page.getByRole('separator', { name: 'Resize cell details' });
+  const box = await sash.boundingBox();
+  if (!box) throw new Error('No sash');
+  await page.mouse.move(box.x + 2, box.y + 100);
+  await page.mouse.down();
+  await page.mouse.move(box.x - 98, box.y + 100, { steps: 4 });
+  await page.mouse.up();
+  near(await width(), before + 100);
+
+  await sash.focus();
+  await page.keyboard.press('ArrowRight');
+  near(await width(), before + 80);
+
+  await open(page, 'table:artists');
+  await expect(detail(page)).toBeVisible();
+  near(await width(), before + 80);
+  expect(viewer.problems).toEqual([]);
+});

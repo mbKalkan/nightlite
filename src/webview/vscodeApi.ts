@@ -6,6 +6,10 @@ export interface ViewState {
   selected?: string;
   /** Whether tables open on their rows or their schema. */
   tab?: 'data' | 'schema';
+  /** Whether the cell detail panel is open beside the rows. */
+  detail?: boolean;
+  /** Its width in pixels, once resized. */
+  detailWidth?: number;
 }
 
 interface VsCodeApi {

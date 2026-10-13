@@ -62,5 +62,13 @@
   "Copied {0} rows.": "{0} satır kopyalandı.",
   "Copied the first {0} rows: a copy holds at most {1} rows or {2}.": "İlk {0} satır kopyalandı: bir kopya en çok {1} satır ya da {2} alır.",
   "Copied, with values longer than {0} cut short.": "Kopyalandı; {0} sınırını aşan değerler kısaltıldı.",
-  "Couldn't copy: {0}": "Kopyalanamadı: {0}"
+  "Couldn't copy: {0}": "Kopyalanamadı: {0}",
+  "Cell details": "Hücre ayrıntıları",
+  "Resize cell details": "Hücre ayrıntılarını yeniden boyutlandır",
+  "Copy value": "Değeri kopyala",
+  "Close": "Kapat",
+  "No cell selected.": "Seçili hücre yok.",
+  "Showing the first {0} characters; copy the value for all of it.": "İlk {0} karakter gösteriliyor; tamamı için değeri kopyalayın.",
+  "Showing the first {0}; copy the value for all of it as hex.": "İlk {0} gösteriliyor; tamamını hex olarak almak için değeri kopyalayın.",
+  "This value couldn't be read": "Bu değer okunamadı"
 }

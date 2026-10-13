@@ -41,6 +41,8 @@ export interface GridEvents {
   onSelection(): void;
   /** `toEnd`: the selection runs to the last row, wherever the count turns out to end. */
   onCopy(range: CellRange, toEnd: boolean): void;
+  /** Enter or a double click on a cell: show it in full. */
+  onEnter(): void;
 }
 
 /** What a mouse drag extends: cells, whole rows (from a row header) or whole columns. */
@@ -115,6 +117,10 @@ export class DataGrid {
     this.element.addEventListener('keydown', (event) => this.onKeyDown(event));
     this.element.addEventListener('mousedown', (event) => this.onMouseDown(event));
     this.element.addEventListener('mousemove', (event) => this.onMouseMove(event));
+    this.element.addEventListener('dblclick', (event) => {
+      const hit = this.hit(event);
+      if (hit && !hit.header && hit.col >= 0) this.events.onEnter();
+    });
     window.addEventListener('mouseup', this.onMouseUp);
     document.addEventListener('copy', this.onCopy);
     document.addEventListener('selectstart', this.onSelectStart);
@@ -302,6 +308,9 @@ export class DataGrid {
       case 'A':
         if (!ctrl || event.shiftKey || event.altKey) return;
         this.selectAll();
+        break;
+      case 'Enter':
+        this.events.onEnter();
         break;
       case 'Escape': {
         const { row1, col1, row2, col2 } = this.selection;

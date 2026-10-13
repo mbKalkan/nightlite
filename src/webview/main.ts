@@ -15,9 +15,17 @@ const shell = new Shell(
       state.tab = tab;
       vscode.setState(state);
     },
+    onDetail: (open) => {
+      state.detail = open;
+      vscode.setState(state);
+    },
+    onDetailWidth: (width) => {
+      state.detailWidth = width;
+      vscode.setState(state);
+    },
     send: (message) => vscode.postMessage(message),
   },
-  state.tab ?? 'data',
+  { tab: state.tab ?? 'data', detail: state.detail ?? false, detailWidth: state.detailWidth },
 );
 let loaded = false;
 
@@ -53,6 +61,7 @@ window.addEventListener('message', (event: MessageEvent<HostToWebviewMessage>) =
     case 'rowPage':
     case 'objectError':
     case 'copied':
+    case 'cellValue':
       shell.dataMessage(message);
       break;
   }

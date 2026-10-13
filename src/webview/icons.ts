@@ -18,4 +18,9 @@ export const icons = {
   ),
   trigger: svg('<path d="M9 1.5 3.5 9H8l-1 5.5L12.5 7H8z"/>'),
   chevronDown: svg('<path d="M3.5 6 8 10.5 12.5 6"/>'),
+  copy: svg(
+    '<rect x="5.5" y="5.5" width="8" height="8" rx="1"/><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/>',
+  ),
+  close: svg('<path d="M4 4l8 8M12 4l-8 8"/>'),
+  panelRight: svg('<rect x="2" y="3" width="12" height="10" rx="1"/><path d="M9.5 3v10"/>'),
 } as const;
