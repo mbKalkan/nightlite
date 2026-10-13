@@ -1,6 +1,11 @@
 // Messages between the extension host and the worker thread that owns a database connection.
 
-export type WorkerCall = { type: 'open'; target: string } | { type: 'schema' };
+export type WorkerCall =
+  | { type: 'open'; target: string }
+  | { type: 'schema' }
+  | { type: 'objectInfo'; name: string }
+  | { type: 'rows'; name: string; start: number; count: number; total: number }
+  | { type: 'count'; name: string };
 
 export type WorkerRequest = WorkerCall & { id: number };
 

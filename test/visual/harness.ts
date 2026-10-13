@@ -2,10 +2,17 @@ import { readFileSync, statSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type { Page } from '@playwright/test';
+import { TableReader } from '../../src/extension/database/rows';
 import { readSchema } from '../../src/extension/database/schema';
 import { connectionTarget } from '../../src/extension/database/target';
+import { answer } from '../../src/extension/requests';
+import { viewerStrings } from '../../src/extension/strings';
 import { buildWebviewHtml } from '../../src/extension/webviewHtml';
-import type { HostToWebviewMessage, ViewerStrings } from '../../src/shared/protocol';
+import type {
+  HostToWebviewMessage,
+  ViewerStrings,
+  WebviewToHostMessage,
+} from '../../src/shared/protocol';
 import { HEADER_SIZE, describeFile } from '../../src/shared/sqliteHeader';
 import { themes, type ThemeName } from './themes';
 
@@ -23,57 +30,57 @@ const CONTENT_TYPES: Record<string, string> = {
   '.map': 'application/json',
 };
 
-export const strings: ViewerStrings = {
-  errorTitle: "This file can't be displayed",
-  errorEmpty: 'The file is empty.',
-  errorNotSqlite: "The file isn't a SQLite database, or it's encrypted.",
-  errorUnreadable: "The file couldn't be read.",
-  errorNotOnDisk: 'Nightlite opens files on a disk. Save a copy into your workspace and open that.',
-  formatSqlite: 'SQLite database',
-  formatMbtiles: 'MBTiles tileset',
-  formatGeopackage: 'GeoPackage',
-  fileSize: 'File size',
-  pages: 'Pages',
-  pagesValue: '{0} × {1}',
-  textEncoding: 'Text encoding',
-  journal: 'Journal',
-  journalWal: 'Write-ahead log (WAL)',
-  journalRollback: 'Rollback journal',
-  userVersion: 'User version',
-  applicationId: 'Application ID',
-  writtenBy: 'Last written by',
-  databaseObjects: 'Database objects',
-  overview: 'Overview',
-  tables: 'Tables',
-  views: 'Views',
-  indexes: 'Indexes',
-  triggers: 'Triggers',
-  noTables: 'This database has no tables yet.',
-  expand: 'Expand',
-  collapse: 'Collapse',
-  table: 'Table',
-  view: 'View',
-  index: 'Index',
-  trigger: 'Trigger',
-  virtualTable: 'Virtual table',
-  internalTable: 'SQLite internal',
-  withoutRowid: 'WITHOUT ROWID',
-  strict: 'STRICT',
-  onTable: 'on {0}',
-  noSql: 'SQLite keeps no CREATE statement for this object.',
-  openErrorTitle: "The database couldn't be opened",
-  openErrorDamaged: 'The database file is damaged.',
-  openErrorLocked:
-    'Another program is writing to the database right now. Reopen it when that program is done.',
-  openErrorOther: 'SQLite reported a problem with this database.',
-};
+/** The strings in English, as VS Code's l10n gives them without a translation. */
+export const strings: ViewerStrings = viewerStrings({ t: (message) => message });
+
+/** Pages already given `__toHost`; opening the viewer again on one replaces its host. */
+const exposed = new WeakSet<Page>();
+const hosts = new WeakMap<Page, (message: WebviewToHostMessage) => Promise<void>>();
+
+/** How the stand-in extension host answers: `count: false` never finishes counting rows. */
+export interface HostOptions {
+  schema?: boolean;
+  count?: boolean;
+}
 
 /**
  * Loads the built webview (dist/webview) the way VS Code does: same HTML, same CSP,
- * a stubbed `acquireVsCodeApi`, and theme variables on the root element.
+ * a stubbed `acquireVsCodeApi`, and theme variables on the root element. Requests for rows go
+ * to a stand-in extension host that answers from the fixture with the extension's own code.
  */
 export async function openViewer(page: Page, theme: ThemeName) {
   const problems: string[] = [];
+  let database: { db: DatabaseSync; readers: Map<string, TableReader>; count: boolean } | undefined;
+  const reader = (name: string) => {
+    if (!database) throw new Error('No database loaded');
+    let found = database.readers.get(name);
+    if (!found) {
+      found = new TableReader(database.db, name);
+      database.readers.set(name, found);
+    }
+    return found;
+  };
+  const post = (message: HostToWebviewMessage) =>
+    page.evaluate((data) => window.dispatchEvent(new MessageEvent('message', { data })), message);
+  hosts.set(page, (message: WebviewToHostMessage) =>
+    answer(
+      message,
+      {
+        objectInfo: async (name) => reader(name).info,
+        rows: async (name, start, count, total) => reader(name).page(start, count, total),
+        count: (name) =>
+          database?.count ? Promise.resolve(reader(name).count()) : new Promise<number>(() => {}),
+      },
+      post,
+    ),
+  );
+  if (!exposed.has(page)) {
+    exposed.add(page);
+    await page.exposeFunction('__toHost', (message: WebviewToHostMessage) =>
+      hosts.get(page)?.(message),
+    );
+  }
+  page.on('close', () => database?.db.close());
   page.on('console', (message) => {
     if (message.type() === 'error') problems.push(message.text());
   });
@@ -124,7 +131,12 @@ export async function openViewer(page: Page, theme: ThemeName) {
       __sent: sent,
       __applyTheme: applyTheme,
       acquireVsCodeApi: () => ({
-        postMessage: (message: unknown) => sent.push(message),
+        postMessage: (message: unknown) => {
+          sent.push(message);
+          void (window as unknown as { __toHost(message: unknown): Promise<void> }).__toHost(
+            message,
+          );
+        },
         getState: () => state,
         setState: (value: unknown) => (state = value),
       }),
@@ -142,16 +154,14 @@ export async function openViewer(page: Page, theme: ThemeName) {
     problems,
     /** Delivers a message as if it came from the extension host. */
     async post(message: HostToWebviewMessage) {
-      await page.evaluate(
-        (data) => window.dispatchEvent(new MessageEvent('message', { data })),
-        message,
-      );
+      await post(message);
     },
     /**
      * Sends what the extension host would for a fixture: its header facts, then its schema,
-     * or why it can't be shown. `schema: false` stops after the header, as while still opening.
+     * or why it can't be shown. `schema: false` stops after the header, as while still opening;
+     * `count: false` leaves row counts running forever.
      */
-    async load(fixture: string, { schema = true } = {}) {
+    async load(fixture: string, { schema = true, count = true }: HostOptions = {}) {
       const path = join('test/fixtures', fixture);
       const bytes = readFileSync(path).subarray(0, HEADER_SIZE);
       const result = describeFile(path, bytes, statSync(path).size);
@@ -163,14 +173,12 @@ export async function openViewer(page: Page, theme: ThemeName) {
       await this.post({ type: 'load', file: result.file, locale: 'en', strings });
       await page.waitForSelector('.nl-overview');
       if (!schema) return;
+      database?.db.close();
       const db = new DatabaseSync(connectionTarget(path, result.file.header.wal), {
         readOnly: true,
       });
-      try {
-        await this.post({ type: 'schema', objects: readSchema(db) });
-      } finally {
-        db.close();
-      }
+      database = { db, readers: new Map(), count };
+      await this.post({ type: 'schema', objects: readSchema(db) });
       await page.waitForSelector('.nl-sidebar:not([hidden])');
     },
     /** Switches the theme the way VS Code does: CSS variables plus body classes. */

@@ -340,8 +340,10 @@ create(join(FIXTURES, 'sample.sqlite'), (db) => {
   // One row per kind of value a cell can hold.
   const kind = db.prepare('INSERT INTO value_kinds (label, value) VALUES (?, ?)');
   for (const row of [
-    ['integer', 42],
-    ['negative integer', -7],
+    // JavaScript numbers bind as REAL; BigInts bind as INTEGER.
+    ['integer', 42n],
+    ['negative integer', -7n],
+    ['whole real', 42],
     ['integer beyond 2^53', 9007199254740993n],
     ['real', 3.14159],
     ['real 0.1', 0.1],

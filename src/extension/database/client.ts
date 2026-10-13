@@ -1,5 +1,5 @@
 import { Worker } from 'node:worker_threads';
-import type { SchemaObject } from '../../shared/protocol';
+import type { ObjectInfo, RowPage, SchemaObject } from '../../shared/protocol';
 import type { WorkerCall, WorkerFailure, WorkerResponse } from './messages';
 
 /** An error from the database worker, with SQLite's result code when SQLite raised it. */
@@ -32,6 +32,18 @@ export class DatabaseClient {
 
   schema(): Promise<SchemaObject[]> {
     return this.call({ type: 'schema' }) as Promise<SchemaObject[]>;
+  }
+
+  objectInfo(name: string): Promise<ObjectInfo> {
+    return this.call({ type: 'objectInfo', name }) as Promise<ObjectInfo>;
+  }
+
+  rows(name: string, start: number, count: number, total: number): Promise<RowPage> {
+    return this.call({ type: 'rows', name, start, count, total }) as Promise<RowPage>;
+  }
+
+  count(name: string): Promise<number> {
+    return this.call({ type: 'count', name }) as Promise<number>;
   }
 
   dispose(): void {

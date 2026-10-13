@@ -45,6 +45,47 @@ export interface SchemaObject {
   strict: boolean;
 }
 
+/** A column as `PRAGMA table_xinfo` describes it. */
+export interface ColumnInfo {
+  name: string;
+  /** The declared type, as written; SQLite doesn't hold values to it unless the table is STRICT. */
+  type: string;
+  notNull: boolean;
+  defaultValue: string | null;
+  /** 1-based position in the primary key, 0 when not part of it. */
+  primaryKey: number;
+  generated: boolean;
+}
+
+/** What the grid needs to know about a table or view before reading its rows. */
+export interface ObjectInfo {
+  name: string;
+  columns: ColumnInfo[];
+  /** Rowid tables show their rowids and can jump anywhere at once. */
+  hasRowid: boolean;
+  /** Rows estimated from the rowid span, until counted; null when there is no quick estimate. */
+  estimate: number | null;
+}
+
+/**
+ * A cell value, JSON-safe and exact: integers beyond 2^53 and infinite reals travel as text,
+ * long text as its first part and full length, BLOBs as their size and first bytes in hex.
+ */
+export type CellValue =
+  null | number | string | { text: string; length: number } | { size: number; head: string };
+
+/** Rows `start` onwards of a table or view. */
+export interface RowPage {
+  start: number;
+  rows: CellValue[][];
+  /** Each row's storage classes, one letter per column: n, i (integer), f (real), t, b. */
+  types: string[];
+  /** Each row's rowid, as text, for rowid tables. */
+  rowids?: string[];
+  /** True when the table ended within this page. */
+  end: boolean;
+}
+
 /** Why a database whose header is fine still couldn't be opened or read. */
 export type DatabaseError = 'damaged' | 'notSqlite' | 'locked' | 'unreadable' | 'other';
 
@@ -97,6 +138,23 @@ export interface ViewerStrings {
   openErrorDamaged: string;
   openErrorLocked: string;
   openErrorOther: string;
+  /** The Data and Schema tabs of a table or view. */
+  pageTabs: string;
+  data: string;
+  schema: string;
+  /** Rows of `{0}`: the accessible name of the grid. */
+  rowsOf: string;
+  /** Status bar counts; `{0}` is a number. */
+  rowCount: string;
+  oneRow: string;
+  rowEstimate: string;
+  counting: string;
+  columnCount: string;
+  noRows: string;
+  /** Shown in the grid's corner over rowids, and for cells. */
+  rowid: string;
+  primaryKey: string;
+  rowsErrorTitle: string;
 }
 
 export interface LoadMessage {
@@ -134,7 +192,51 @@ export interface RevealMessage {
   name: string;
 }
 
-export type HostToWebviewMessage =
-  LoadMessage | ErrorMessage | SchemaMessage | SchemaErrorMessage | RevealMessage;
+/** A table's or view's columns and row estimate, answering `openObject`. */
+export interface ObjectInfoMessage {
+  type: 'objectInfo';
+  info: ObjectInfo;
+}
 
-export type WebviewToHostMessage = { type: 'ready' };
+/** The exact row count, once counted in the background. */
+export interface RowCountMessage {
+  type: 'rowCount';
+  name: string;
+  count: number;
+}
+
+/** Rows answering a `rows` request. */
+export interface RowPageMessage {
+  type: 'rowPage';
+  request: number;
+  name: string;
+  page: RowPage;
+}
+
+/** A table's columns or rows couldn't be read, like a damaged table or a missing module. */
+export interface ObjectErrorMessage {
+  type: 'objectError';
+  name: string;
+  /** The `rows` request that failed, if it was one. */
+  request?: number;
+  error: DatabaseError;
+  detail: string;
+}
+
+export type HostToWebviewMessage =
+  | LoadMessage
+  | ErrorMessage
+  | SchemaMessage
+  | SchemaErrorMessage
+  | RevealMessage
+  | ObjectInfoMessage
+  | RowCountMessage
+  | RowPageMessage
+  | ObjectErrorMessage;
+
+export type WebviewToHostMessage =
+  | { type: 'ready' }
+  /** Asks for a table's or view's columns and row estimate; the count follows by itself. */
+  | { type: 'openObject'; name: string }
+  /** Asks for `count` rows from position `start`; `total` is the row count the grid assumes. */
+  | { type: 'rows'; request: number; name: string; start: number; count: number; total: number };

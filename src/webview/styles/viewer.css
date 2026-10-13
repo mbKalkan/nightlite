@@ -373,3 +373,214 @@ body.vscode-high-contrast .nl-sql-keyword {
   padding: 0 28px 24px;
   text-align: left;
 }
+
+/* Data and Schema tabs in the toolbar */
+
+.nl-tabs {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.nl-tabs[hidden] {
+  display: none;
+}
+
+.nl-tab {
+  height: 24px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--vscode-descriptionForeground);
+  font: inherit;
+  cursor: pointer;
+}
+
+.nl-tab:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+  color: var(--vscode-foreground);
+  outline: 1px dashed var(--vscode-toolbar-hoverOutline, transparent);
+  outline-offset: -1px;
+}
+
+.nl-tab[aria-selected='true'] {
+  background: var(--vscode-toolbar-activeBackground, var(--vscode-toolbar-hoverBackground));
+  color: var(--vscode-foreground);
+  box-shadow: inset 0 0 0 1px var(--vscode-inputOption-activeBorder, transparent);
+}
+
+.nl-tab:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+/* Rows */
+
+.nl-data {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.nl-grid {
+  --nl-grid-line: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  outline: none;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: var(--vscode-editor-font-size, 13px);
+}
+
+body.vscode-high-contrast .nl-grid {
+  --nl-grid-line: var(--vscode-contrastBorder, transparent);
+}
+
+.nl-grid:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+.nl-grid-sizer {
+  position: relative;
+  min-width: 100%;
+  /* Rows drawn past the last one mustn't make room to scroll into; clip keeps sticky working. */
+  overflow: clip;
+}
+
+.nl-grid-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  height: 26px;
+  border-bottom: 1px solid var(--nl-border);
+  background: var(--vscode-editor-background);
+}
+
+.nl-grid-rows {
+  position: absolute;
+  left: 0;
+  min-width: 100%;
+}
+
+.nl-grid-row {
+  display: flex;
+  height: 22px;
+}
+
+.nl-grid-row:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.nl-grid-cell {
+  flex: none;
+  box-sizing: border-box;
+  height: 100%;
+  padding: 0 8px;
+  overflow: hidden;
+  border-right: 1px solid var(--nl-grid-line);
+  line-height: 22px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.nl-grid-rowhead {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  width: var(--rowhead, 64px);
+  background: var(--vscode-editor-background);
+  color: var(--vscode-descriptionForeground);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.nl-grid-corner {
+  z-index: 3;
+  line-height: 26px;
+  font-family: var(--vscode-font-family);
+  font-size: 12px;
+}
+
+.nl-grid-head {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-family: var(--vscode-font-family);
+  font-weight: 600;
+  line-height: 26px;
+}
+
+.nl-grid-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nl-grid-type {
+  overflow: hidden;
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.85em;
+  font-weight: 400;
+  text-overflow: ellipsis;
+}
+
+.nl-grid-key {
+  display: inline-flex;
+  flex: none;
+  color: var(--vscode-descriptionForeground);
+}
+
+.nl-grid-key svg {
+  width: 12px;
+  height: 12px;
+}
+
+.nl-grid-loading .nl-grid-rowhead::after {
+  content: '·';
+}
+
+.nl-number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.nl-null,
+.nl-blob,
+.nl-ws {
+  color: var(--vscode-descriptionForeground);
+}
+
+.nl-null {
+  font-style: italic;
+}
+
+.nl-grid-message {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 20px;
+  color: var(--vscode-descriptionForeground);
+  font-family: var(--vscode-font-family);
+  white-space: normal;
+}
+
+.nl-grid-message strong {
+  color: var(--vscode-foreground);
+}
+
+.nl-footer {
+  display: flex;
+  flex: none;
+  gap: 12px;
+  align-items: center;
+  height: 24px;
+  padding: 0 12px;
+  border-top: 1px solid var(--nl-border);
+  color: var(--vscode-descriptionForeground);
+  font-size: 12px;
+  white-space: nowrap;
+}

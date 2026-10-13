@@ -1,9 +1,11 @@
 import * as vscode from 'vscode';
 import type { HostToWebviewMessage, WebviewToHostMessage } from '../shared/protocol';
 import { describeFile } from '../shared/sqliteHeader';
-import { classifyDatabaseError, DatabaseDocument } from './databaseDocument';
+import { DatabaseDocument } from './databaseDocument';
+import { classifyDatabaseError } from './databaseErrors';
 import { readFileHeader } from './fileHeader';
 import { pickObject } from './objectPicker';
+import { answer } from './requests';
 import { viewerStrings } from './strings';
 import { buildWebviewHtml } from './webviewHtml';
 
@@ -51,6 +53,8 @@ export class ViewerProvider implements vscode.CustomReadonlyEditorProvider<Datab
       panel.webview.onDidReceiveMessage((message: WebviewToHostMessage) => {
         if (message.type === 'ready') {
           void this.load(document, post);
+        } else {
+          void answer(message, document, post);
         }
       }),
       panel.onDidChangeViewState(() => this.track(editor)),
@@ -77,7 +81,7 @@ export class ViewerProvider implements vscode.CustomReadonlyEditorProvider<Datab
     post: (message: HostToWebviewMessage) => Thenable<boolean>,
   ): Promise<void> {
     const { uri } = document;
-    const strings = viewerStrings();
+    const strings = viewerStrings(vscode.l10n);
     const fileName = uri.path.slice(uri.path.lastIndexOf('/') + 1);
     // SQLite reads the file in place, so it has to be on a disk this extension host can reach.
     if (uri.scheme !== 'file') {

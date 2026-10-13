@@ -20,3 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   trigger as you type.
 - Databases are opened read-only in a background thread, so VS Code stays responsive. Databases in
   write-ahead log mode open without creating `-wal` or `-shm` files next to them.
+- Tables and views open on their rows: a grid that scrolls smoothly through millions of rows and
+  jumps anywhere at once, even in files of tens of gigabytes, reading only the rows in view.
+  Rowid tables show their rowids, other tables and views number their rows.
+- Every value shows as it is stored: integers stay exact beyond 2^53, a REAL keeps its decimal
+  point, NULL stands apart from text, line breaks and tabs show as symbols, long text is cut with
+  an ellipsis, and BLOBs say what they hold (PNG, JPEG, WebP, gzip, GeoPackage geometry…) and how
+  big they are.
+- Column headers show each column's declared type and primary key.
+- The status bar counts rows in the background and shows the estimate meanwhile.
+- **Data** and **Schema** tabs switch between a table's rows and the statement that created it.

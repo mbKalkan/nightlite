@@ -1,14 +1,24 @@
 import './styles/viewer.css';
 import type { HostToWebviewMessage } from '../shared/protocol';
-import type { EntryKey } from './objectTree';
 import { Shell } from './shell';
 import { vscode, type ViewState } from './vscodeApi';
 
 const state: ViewState = vscode.getState() ?? {};
-const shell = new Shell(document.getElementById('app') as HTMLElement, (key: EntryKey) => {
-  state.selected = key;
-  vscode.setState(state);
-});
+const shell = new Shell(
+  document.getElementById('app') as HTMLElement,
+  {
+    onSelect: (key) => {
+      state.selected = key;
+      vscode.setState(state);
+    },
+    onTab: (tab) => {
+      state.tab = tab;
+      vscode.setState(state);
+    },
+    send: (message) => vscode.postMessage(message),
+  },
+  state.tab ?? 'data',
+);
 let loaded = false;
 
 // Show progress only if the first answer is slow, so quick loads don't flash.
@@ -37,6 +47,12 @@ window.addEventListener('message', (event: MessageEvent<HostToWebviewMessage>) =
       break;
     case 'reveal':
       shell.reveal(message.name);
+      break;
+    case 'objectInfo':
+    case 'rowCount':
+    case 'rowPage':
+    case 'objectError':
+      shell.dataMessage(message);
       break;
   }
 });
