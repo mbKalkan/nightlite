@@ -1,0 +1,6 @@
+{
+  "displayName": "Nightlite — SQLite, MBTiles ve GeoPackage Görüntüleyici",
+  "description": "SQLite veritabanlarını, MBTiles ve GeoPackage dosyalarını (.sqlite, .db, .mbtiles, .gpkg) koyu temada görüntüleyin; onlarca GB'lık dosyalar bile anında açılır. Hızlı, çevrimdışı ve salt okunur.",
+  "customEditor.displayName": "Nightlite",
+  "virtualWorkspaces.description": "Nightlite veritabanlarını SQLite ile okur; bunun için dosyanın yerel ya da uzak bir diskte olması gerekir."
+}

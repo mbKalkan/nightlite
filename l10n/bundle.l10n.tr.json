@@ -1,0 +1,20 @@
+{
+  "This file can't be displayed": "Bu dosya görüntülenemiyor",
+  "The file is empty.": "Dosya boş.",
+  "The file isn't a SQLite database, or it's encrypted.": "Dosya bir SQLite veritabanı değil ya da şifrelenmiş.",
+  "The file couldn't be read.": "Dosya okunamadı.",
+  "Nightlite opens files on a disk. Save a copy into your workspace and open that.": "Nightlite diskteki dosyaları açar. Çalışma alanınıza bir kopyasını kaydedip onu açın.",
+  "SQLite database": "SQLite veritabanı",
+  "MBTiles tileset": "MBTiles karo seti",
+  "GeoPackage": "GeoPackage",
+  "File size": "Dosya boyutu",
+  "Pages": "Sayfalar",
+  "{0} × {1}": "{0} × {1}",
+  "Text encoding": "Metin kodlaması",
+  "Journal": "Günlük",
+  "Write-ahead log (WAL)": "Önceden yazma günlüğü (WAL)",
+  "Rollback journal": "Geri alma günlüğü",
+  "User version": "Kullanıcı sürümü",
+  "Application ID": "Uygulama kimliği",
+  "Last written by": "Son yazan"
+}

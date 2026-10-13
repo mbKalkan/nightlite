@@ -1,0 +1,160 @@
+/* Viewer chrome. Colors come from VS Code theme variables so every theme looks native. */
+
+:root {
+  --nl-toolbar-height: 35px;
+  --nl-border: var(--vscode-panel-border, var(--vscode-widget-border, transparent));
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+body {
+  background: var(--vscode-editor-background);
+  color: var(--vscode-foreground);
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+}
+
+#app {
+  height: 100%;
+}
+
+.nl-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* Toolbar */
+
+.nl-toolbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: var(--nl-toolbar-height);
+  padding: 0 14px;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--nl-border);
+  user-select: none;
+}
+
+.nl-file-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Content */
+
+.nl-content {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  outline: none;
+}
+
+.nl-content:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+.nl-progress {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  overflow: hidden;
+}
+
+.nl-progress::before {
+  content: '';
+  position: absolute;
+  width: 20%;
+  height: 100%;
+  background: var(--vscode-progressBar-background);
+  animation: nl-progress 1.2s linear infinite;
+}
+
+@keyframes nl-progress {
+  from {
+    left: -20%;
+  }
+  to {
+    left: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nl-progress::before {
+    width: 100%;
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+/* Overview */
+
+.nl-overview {
+  max-width: 560px;
+  padding: 24px 28px;
+}
+
+.nl-format {
+  margin: 0 0 16px;
+  font-size: 1.25em;
+  font-weight: 600;
+}
+
+.nl-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 24px;
+  margin: 0;
+}
+
+.nl-facts dt {
+  color: var(--vscode-descriptionForeground);
+}
+
+.nl-facts dd {
+  margin: 0;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Errors */
+
+.nl-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-sizing: border-box;
+  min-height: 100%;
+  padding: 32px;
+  text-align: center;
+}
+
+.nl-error-title {
+  margin: 0;
+  font-size: 1.25em;
+  font-weight: 600;
+}
+
+.nl-error-message {
+  max-width: 440px;
+  margin: 0;
+  color: var(--vscode-descriptionForeground);
+  line-height: 1.5;
+}
