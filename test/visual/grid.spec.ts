@@ -7,7 +7,8 @@ const SCREENS = 'test-results/screens';
 
 const open = (page: Page, key: string) => page.locator(`.nl-tree-item[data-key="${key}"]`).click();
 const grid = (page: Page) => page.locator('.nl-grid');
-const footer = (page: Page) => page.locator('.nl-footer');
+const footer = (page: Page) => page.locator('.nl-status-counts');
+const status = (page: Page) => page.locator('.nl-status-selection');
 /** The row whose row header (rowid or number) reads `label`. */
 const row = (page: Page, label: string) =>
   page.locator('.nl-grid-row').filter({
@@ -60,12 +61,15 @@ test('scrolls through thousands of rows with the keyboard', async ({ page }) => 
   await expect(footer(page)).toHaveText('5,000 rows · 4 columns');
 
   await grid(page).focus();
-  await page.keyboard.press('End');
+  await page.keyboard.press('Control+End');
   await expect(row(page, '5000')).toBeVisible();
-  await page.keyboard.press('Home');
+  await expect(status(page)).toContainText('rowid 5000 · amount');
+  await page.keyboard.press('Control+Home');
   await expect(row(page, '1')).toBeVisible();
   await page.keyboard.press('PageDown');
   await expect(row(page, '1')).toBeHidden();
+  await page.keyboard.press('Control+ArrowDown');
+  await expect(row(page, '5000')).toBeVisible();
   expect(viewer.problems).toEqual([]);
 });
 
@@ -123,6 +127,118 @@ test('switches between Data and Schema with the arrow keys and remembers it', as
   await expect(page.getByRole('tab', { name: 'Data' })).toBeHidden();
 });
 
+const where = (page: Page) => page.locator('.nl-status-where');
+const kind = (page: Page) => page.locator('.nl-status-type').first();
+const value = (page: Page) => page.locator('.nl-status-value');
+const note = (page: Page) => page.locator('.nl-status-note');
+const head = (page: Page, name: string) =>
+  page.locator('.nl-grid-head').filter({ has: page.locator('.nl-grid-name', { hasText: name }) });
+const selectedCells = (page: Page) => page.locator('[role="gridcell"].nl-grid-sel');
+
+for (const theme of ['dark', 'light'] as ThemeName[]) {
+  test(`selects cells like a spreadsheet and shows the active one below (${theme})`, async ({
+    page,
+  }) => {
+    const viewer = await openViewer(page, theme);
+    await viewer.load('sample.sqlite');
+    await open(page, 'table:value_kinds');
+    // The first cell is active from the start.
+    await expect(where(page)).toHaveText('rowid 1 · id');
+    await expect(kind(page)).toHaveText('INTEGER');
+    await expect(value(page)).toHaveText('1');
+
+    await cell(page, '12', 2).click();
+    await expect(where(page)).toHaveText('rowid 12 · value');
+    await expect(kind(page)).toHaveText('TEXT');
+    await expect(value(page)).toHaveText(/^Lorem ipsum.*…$/);
+    await expect(status(page)).toContainText('11,200 characters');
+    await page.keyboard.press('ArrowDown');
+    await expect(where(page)).toHaveText('rowid 13 · value');
+    await expect(value(page)).toHaveText('{"a":1,"b":[true,null,"x"],"c":{"d":2.5}}');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('ArrowDown');
+    await expect(where(page)).toHaveText('rowid 17 · value');
+    await expect(value(page)).toHaveText(/^PNG · \d+ B$/);
+    await page.keyboard.press('ArrowDown');
+    await expect(kind(page)).toHaveText('NULL');
+    await expect(value(page)).toHaveCount(0);
+
+    await cell(page, '9', 1).click();
+    await cell(page, '11', 2).click({ modifiers: ['Shift'] });
+    await expect(status(page)).toHaveText('3 rows × 2 columns');
+    await expect(selectedCells(page)).toHaveCount(6);
+    await expect(head(page, 'label')).toHaveClass(/nl-grid-sel/);
+    await expect(head(page, 'id')).not.toHaveClass(/nl-grid-sel/);
+    await expect(grid(page)).toHaveAttribute('aria-activedescendant', 'nl-grid-active');
+    await expect(cell(page, '11', 2)).toHaveId('nl-grid-active');
+    await page.keyboard.press('Shift+ArrowDown');
+    await expect(status(page)).toHaveText('4 rows × 2 columns');
+    await page.screenshot({ path: `${SCREENS}/grid-selection-${theme}.png` });
+
+    await page.keyboard.press('Escape');
+    await expect(where(page)).toHaveText('rowid 12 · value');
+    await page.keyboard.press('Control+a');
+    await expect(status(page)).toHaveText('18 rows × 3 columns');
+    // VS Code follows Ctrl+A with Select All on the webview; no text around the grid lights up.
+    const selectedText = await page.evaluate(() => {
+      document.execCommand('selectAll');
+      return getSelection()?.toString();
+    });
+    expect(selectedText).toBe('');
+    expect(viewer.problems).toEqual([]);
+  });
+}
+
+test('selects whole rows and columns from their headers', async ({ page }) => {
+  const viewer = await openViewer(page, 'dark');
+  await viewer.load('sample.sqlite');
+  await open(page, 'table:value_kinds');
+
+  await head(page, 'label').click();
+  await expect(status(page)).toHaveText('18 rows × 1 column');
+  await head(page, 'value').click({ modifiers: ['Shift'] });
+  await expect(status(page)).toHaveText('18 rows × 2 columns');
+
+  await row(page, '3').locator('.nl-grid-rowhead').click();
+  await expect(status(page)).toHaveText('1 row × 3 columns');
+  await row(page, '5')
+    .locator('.nl-grid-rowhead')
+    .click({ modifiers: ['Shift'] });
+  await expect(status(page)).toHaveText('3 rows × 3 columns');
+  await expect(row(page, '4').locator('.nl-grid-rowhead')).toHaveClass(/nl-grid-sel/);
+
+  await page.locator('.nl-grid-corner').click();
+  await expect(status(page)).toHaveText('18 rows × 3 columns');
+});
+
+test('copies full values through the extension host', async ({ page }) => {
+  const viewer = await openViewer(page, 'dark');
+  await viewer.load('sample.sqlite');
+  await open(page, 'table:value_kinds');
+
+  // The grid holds only the first 1,000 characters; the copy has all of them.
+  await cell(page, '12', 2).click();
+  await page.keyboard.press('Control+c');
+  await expect(note(page)).toHaveText('Copied the value.');
+  expect(viewer.clipboard.at(-1)).toHaveLength(11200);
+
+  await cell(page, '9', 1).click();
+  await cell(page, '10', 2).click({ modifiers: ['Shift'] });
+  await page.keyboard.press('Control+c');
+  await expect(note(page)).toHaveText('Copied 2 rows.');
+  expect(viewer.clipboard.at(-1)).toBe(
+    'text that looks like a number\t007\nmulti-line text\t"first line\nsecond line\n\tindented"',
+  );
+
+  await row(page, '15').locator('.nl-grid-rowhead').click();
+  await page.keyboard.press('Control+c');
+  await expect(note(page)).toHaveText('Copied 1 row.');
+  expect(viewer.clipboard.at(-1)).toBe('15\tblob\t0001027f80ff');
+  expect(viewer.problems).toEqual([]);
+});
+
 const LARGE = 'test/fixtures/generated/large.sqlite';
 
 test('reaches any of ten million rows at once', async ({ page }) => {
@@ -133,24 +249,38 @@ test('reaches any of ten million rows at once', async ({ page }) => {
   await expect(footer(page)).toHaveText('10,000,000 rows · 4 columns');
 
   await grid(page).focus();
-  await page.keyboard.press('End');
+  await page.keyboard.press('Control+End');
   await expect(row(page, '10000000')).toBeVisible();
 
   // Drag the scrollbar halfway: the scaled scrollbar maps it to the middle of the table.
   await grid(page).evaluate((el) => {
     el.scrollTop = (el.scrollHeight - el.clientHeight) / 2;
   });
-  await expect(page.locator('.nl-grid-row:not(.nl-grid-loading)').first()).toBeVisible();
-  const first = Number(await page.locator('.nl-grid-row .nl-grid-rowhead').nth(10).textContent());
-  expect(first).toBeGreaterThan(4_900_000);
-  expect(first).toBeLessThan(5_100_000);
+  const label = async () =>
+    Number(await page.locator('.nl-grid-row .nl-grid-rowhead').nth(10).textContent());
+  // Rows read near the middle replace the last ones once they arrive.
+  await expect
+    .poll(async () => {
+      const shown = await label();
+      return shown > 4_900_000 && shown < 5_100_000;
+    })
+    .toBe(true);
+  const first = await label();
 
   // The wheel still moves a few rows at a time, not thousands.
   await page.mouse.move(600, 400);
   await page.mouse.wheel(0, 3 * 22);
   await page.waitForTimeout(100);
-  const after = Number(await page.locator('.nl-grid-row .nl-grid-rowhead').nth(10).textContent());
+  const after = await label();
   expect(after - first).toBeGreaterThan(0);
   expect(after - first).toBeLessThan(10);
+
+  // Copying everything stops at the clipboard limit, and says so.
+  await page.keyboard.press('Control+a');
+  await expect(status(page)).toHaveText('10,000,000 rows × 4 columns');
+  await page.keyboard.press('Control+c');
+  await expect(note(page)).toHaveText(
+    /^Copied the first [\d,]+ rows: a copy holds at most 1,000,000 rows or 16 MB\.$/,
+  );
   expect(viewer.problems).toEqual([]);
 });

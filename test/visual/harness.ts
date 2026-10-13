@@ -50,6 +50,7 @@ export interface HostOptions {
  */
 export async function openViewer(page: Page, theme: ThemeName) {
   const problems: string[] = [];
+  const clipboard: string[] = [];
   let database: { db: DatabaseSync; readers: Map<string, TableReader>; count: boolean } | undefined;
   const reader = (name: string) => {
     if (!database) throw new Error('No database loaded');
@@ -70,8 +71,12 @@ export async function openViewer(page: Page, theme: ThemeName) {
         rows: async (name, start, count, total) => reader(name).page(start, count, total),
         count: (name) =>
           database?.count ? Promise.resolve(reader(name).count()) : new Promise<number>(() => {}),
+        copy: async (name, range) => reader(name).copy(range),
       },
       post,
+      async (text) => {
+        clipboard.push(text);
+      },
     ),
   );
   if (!exposed.has(page)) {
@@ -152,6 +157,8 @@ export async function openViewer(page: Page, theme: ThemeName) {
 
   return {
     problems,
+    /** What the stand-in host wrote to the clipboard, latest last. */
+    clipboard,
     /** Delivers a message as if it came from the extension host. */
     async post(message: HostToWebviewMessage) {
       await post(message);

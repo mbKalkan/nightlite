@@ -1,27 +1,55 @@
-import type { HostToWebviewMessage, ViewerStrings, WebviewToHostMessage } from '../shared/protocol';
-import { formatCount } from '../shared/units';
-import { DataGrid } from './grid/dataGrid';
+import type {
+  CopyResult,
+  HostToWebviewMessage,
+  ViewerStrings,
+  WebviewToHostMessage,
+} from '../shared/protocol';
+import { formatBytes, formatCount } from '../shared/units';
+import { COPY_LIMIT, COPY_ROWS } from '../shared/values';
+import { cellText } from './grid/cells';
+import { DataGrid, type CellRange } from './grid/dataGrid';
 import { databaseErrorMessage, element, format } from './views';
 
 type DataMessage = Extract<
   HostToWebviewMessage,
-  { type: 'objectInfo' | 'rowCount' | 'rowPage' | 'objectError' }
+  { type: 'objectInfo' | 'rowCount' | 'rowPage' | 'objectError' | 'copied' }
 >;
+
+/** SQLite's names for the storage classes, by the letter rows carry them as. */
+const STORAGE_CLASSES: Record<string, string> = {
+  n: 'NULL',
+  i: 'INTEGER',
+  f: 'REAL',
+  t: 'TEXT',
+  b: 'BLOB',
+};
+/** The status bar shows this much of a value; the cell detail shows the rest. */
+const PREVIEW = 200;
+/** How long a copy's confirmation stays in the status bar. */
+const NOTE_TIME = 4000;
+/** A copy taking longer than this says it's under way. */
+const SLOW_COPY = 250;
 
 let nextRequest = 1;
 
 /**
  * A table's or view's rows: asks the extension host for the columns, then rows as the grid
- * scrolls, and shows the row and column counts below. Answers for another object, or for
- * requests made before this view, are ignored.
+ * scrolls, and shows the selection and the row and column counts below. Answers for another
+ * object, or for requests made before this view, are ignored.
  */
 export class DataView {
   readonly element: HTMLElement;
-  private readonly status: HTMLElement;
+  private readonly footer: HTMLElement;
+  private readonly selectionStatus: HTMLElement;
+  private readonly note: HTMLElement;
+  private readonly counts: HTMLElement;
   private grid: DataGrid | undefined;
   private readonly requests = new Set<number>();
+  private readonly copies = new Set<number>();
   private columns = 0;
   private estimated = false;
+  private noteTimer = 0;
+  private copyTimer = 0;
 
   constructor(
     readonly name: string,
@@ -30,9 +58,14 @@ export class DataView {
     private readonly send: (message: WebviewToHostMessage) => void,
   ) {
     this.element = element('div', 'nl-data');
-    this.status = element('div', 'nl-footer');
-    this.status.setAttribute('aria-live', 'polite');
-    this.element.append(element('div', 'nl-progress'), this.status);
+    this.footer = element('div', 'nl-footer');
+    this.selectionStatus = element('span', 'nl-status-selection');
+    this.note = element('span', 'nl-status-note');
+    this.note.setAttribute('aria-live', 'polite');
+    this.counts = element('span', 'nl-status-counts');
+    this.counts.setAttribute('aria-live', 'polite');
+    this.footer.append(this.selectionStatus, this.note, this.counts);
+    this.element.append(element('div', 'nl-progress'), this.footer);
     send({ type: 'openObject', name });
   }
 
@@ -47,19 +80,19 @@ export class DataView {
         if (this.grid) return;
         this.columns = message.info.columns.length;
         this.estimated = message.info.estimate !== null;
-        this.grid = new DataGrid(
-          message.info,
-          this.strings,
-          this.locale,
-          (start, count, total) => {
+        this.grid = new DataGrid(message.info, this.strings, this.locale, {
+          request: (start, count, total) => {
             const request = nextRequest++;
             this.requests.add(request);
             this.send({ type: 'rows', request, name: this.name, start, count, total });
           },
-          (total, exact) => this.showCounts(total, exact),
-        );
-        this.element.replaceChildren(this.grid.element, this.status);
+          onTotal: (total, exact) => this.showCounts(total, exact),
+          onSelection: () => this.showSelection(),
+          onCopy: (range, toEnd) => this.copy(range, toEnd),
+        });
+        this.element.replaceChildren(this.grid.element, this.footer);
         this.showCounts(message.info.estimate ?? 0, false);
+        this.showSelection();
         break;
       case 'rowCount':
         this.grid?.setTotal(message.count, true);
@@ -69,9 +102,18 @@ export class DataView {
           this.grid?.receive(message.page);
         }
         break;
+      case 'copied':
+        if (this.copies.delete(message.request)) {
+          this.showNote(this.copiedText(message.result));
+        }
+        break;
       case 'objectError': {
-        if (message.request !== undefined && !this.requests.delete(message.request)) return;
         const text = databaseErrorMessage(message.error, this.strings);
+        if (message.request !== undefined && this.copies.delete(message.request)) {
+          this.showNote(format(this.strings.copyFailed, text));
+          return;
+        }
+        if (message.request !== undefined && !this.requests.delete(message.request)) return;
         if (this.grid) {
           this.grid.fail(this.strings.rowsErrorTitle, `${text} ${message.detail}`);
         } else {
@@ -94,20 +136,131 @@ export class DataView {
   }
 
   dispose(): void {
+    clearTimeout(this.noteTimer);
+    clearTimeout(this.copyTimer);
     this.grid?.dispose();
     this.element.remove();
+  }
+
+  private copy(range: CellRange, toEnd: boolean): void {
+    const request = nextRequest++;
+    this.copies.add(request);
+    clearTimeout(this.copyTimer);
+    this.copyTimer = window.setTimeout(() => {
+      clearTimeout(this.noteTimer);
+      this.note.textContent = this.strings.copying;
+    }, SLOW_COPY);
+    this.send({
+      type: 'copy',
+      request,
+      name: this.name,
+      range: {
+        start: range.row1,
+        count: toEnd ? null : range.row2 - range.row1 + 1,
+        total: this.grid?.rowCount.total ?? 0,
+        firstColumn: range.col1,
+        lastColumn: range.col2,
+      },
+    });
+  }
+
+  private copiedText(result: CopyResult): string {
+    const limit = formatBytes(COPY_LIMIT, this.locale);
+    if (result.stopped) {
+      return format(
+        this.strings.copiedStopped,
+        formatCount(result.rows, this.locale),
+        formatCount(COPY_ROWS, this.locale),
+        limit,
+      );
+    }
+    if (result.cut) return format(this.strings.copiedCut, limit);
+    if (result.cells === 1) return this.strings.copiedValue;
+    return result.rows === 1
+      ? this.strings.copiedRow
+      : format(this.strings.copiedRows, formatCount(result.rows, this.locale));
+  }
+
+  private showNote(text: string): void {
+    clearTimeout(this.noteTimer);
+    clearTimeout(this.copyTimer);
+    this.note.textContent = text;
+    this.noteTimer = window.setTimeout(() => (this.note.textContent = ''), NOTE_TIME);
+  }
+
+  /** One cell: where it is, its storage class and its value; a block: its size. */
+  private showSelection(): void {
+    const grid = this.grid;
+    if (!grid || this.columns === 0 || grid.rowCount.total === 0) {
+      this.selectionStatus.replaceChildren();
+      return;
+    }
+    const { row1, col1, row2, col2 } = grid.selection;
+    if (row1 !== row2 || col1 !== col2) {
+      const rows = row2 - row1 + 1;
+      const columns = col2 - col1 + 1;
+      this.selectionStatus.replaceChildren(
+        element('span', '', `${this.rowsText(rows)} × ${this.columnsText(columns)}`),
+      );
+      return;
+    }
+    const label = grid.rowLabel(row1);
+    const column = grid.columnName(col1) ?? '';
+    const where = label === undefined ? column : `${this.rowText(label)} · ${column}`;
+    const parts = [element('span', 'nl-status-where', where)];
+    const cell = grid.cell(row1, col1);
+    if (cell) {
+      parts.push(element('span', 'nl-status-type', STORAGE_CLASSES[cell.type] ?? ''));
+      if (cell.type !== 'n') {
+        const text = cellText(cell.value, cell.type, this.locale);
+        const value = element(
+          'span',
+          'nl-status-value',
+          text.length > PREVIEW ? `${text.slice(0, PREVIEW)}…` : text,
+        );
+        parts.push(value);
+        const full = cell.value;
+        if (full !== null && typeof full === 'object' && 'text' in full) {
+          parts.push(
+            element(
+              'span',
+              'nl-status-type',
+              format(this.strings.characters, formatCount(full.length, this.locale)),
+            ),
+          );
+        }
+      }
+    }
+    this.selectionStatus.replaceChildren(...parts);
+  }
+
+  private rowText(label: string): string {
+    return this.grid?.hasRowid ? `${this.strings.rowid} ${label}` : `#${label}`;
+  }
+
+  private rowsText(rows: number): string {
+    return rows === 1
+      ? this.strings.oneRow
+      : format(this.strings.rowCount, formatCount(rows, this.locale));
+  }
+
+  private columnsText(columns: number): string {
+    return columns === 1
+      ? this.strings.oneColumn
+      : format(this.strings.columnCount, String(columns));
   }
 
   private showCounts(total: number, exact: boolean): void {
     const count = formatCount(total, this.locale);
     let rows: string;
     if (exact) {
-      rows = total === 1 ? this.strings.oneRow : format(this.strings.rowCount, count);
+      rows = this.rowsText(total);
     } else if (this.estimated && total > 0) {
       rows = `${format(this.strings.rowEstimate, count)} (${this.strings.counting})`;
     } else {
       rows = this.strings.counting;
     }
-    this.status.textContent = `${rows} · ${format(this.strings.columnCount, String(this.columns))}`;
+    this.counts.textContent = `${rows} · ${this.columnsText(this.columns)}`;
+    this.showSelection();
   }
 }

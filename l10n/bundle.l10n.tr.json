@@ -53,5 +53,14 @@
   "This table has no rows.": "Bu tabloda satır yok.",
   "rowid": "rowid",
   "Primary key": "Birincil anahtar",
-  "These rows couldn't be read": "Bu satırlar okunamadı"
+  "These rows couldn't be read": "Bu satırlar okunamadı",
+  "1 column": "1 sütun",
+  "{0} characters": "{0} karakter",
+  "Copying…": "Kopyalanıyor…",
+  "Copied the value.": "Değer kopyalandı.",
+  "Copied 1 row.": "1 satır kopyalandı.",
+  "Copied {0} rows.": "{0} satır kopyalandı.",
+  "Copied the first {0} rows: a copy holds at most {1} rows or {2}.": "İlk {0} satır kopyalandı: bir kopya en çok {1} satır ya da {2} alır.",
+  "Copied, with values longer than {0} cut short.": "Kopyalandı; {0} sınırını aşan değerler kısaltıldı.",
+  "Couldn't copy: {0}": "Kopyalanamadı: {0}"
 }

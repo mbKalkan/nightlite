@@ -155,6 +155,17 @@ export interface ViewerStrings {
   rowid: string;
   primaryKey: string;
   rowsErrorTitle: string;
+  oneColumn: string;
+  /** `{0} characters`: the full length of text the grid shows cut short. */
+  characters: string;
+  copying: string;
+  /** What copying put on the clipboard; `{0}` and `{1}` are numbers, `{2}` a size. */
+  copiedValue: string;
+  copiedRow: string;
+  copiedRows: string;
+  copiedStopped: string;
+  copiedCut: string;
+  copyFailed: string;
 }
 
 export interface LoadMessage {
@@ -217,10 +228,38 @@ export interface RowPageMessage {
 export interface ObjectErrorMessage {
   type: 'objectError';
   name: string;
-  /** The `rows` request that failed, if it was one. */
+  /** The `rows` or `copy` request that failed, if it was one. */
   request?: number;
   error: DatabaseError;
   detail: string;
+}
+
+/** Rows and columns to copy, by position; a `count` of null copies to the last row. */
+export interface CopyRange {
+  start: number;
+  count: number | null;
+  /** The row count the grid works with, as for `rows`. */
+  total: number;
+  firstColumn: number;
+  lastColumn: number;
+}
+
+/** How much a copy put on the clipboard. */
+export interface CopyResult {
+  rows: number;
+  cells: number;
+  /** Rows were left out: the selection is more than a copy holds. */
+  stopped: boolean;
+  /** Some value was longer than the limit and was cut. */
+  cut: boolean;
+}
+
+/** The selection is on the clipboard, answering `copy`. */
+export interface CopiedMessage {
+  type: 'copied';
+  request: number;
+  name: string;
+  result: CopyResult;
 }
 
 export type HostToWebviewMessage =
@@ -232,11 +271,14 @@ export type HostToWebviewMessage =
   | ObjectInfoMessage
   | RowCountMessage
   | RowPageMessage
-  | ObjectErrorMessage;
+  | ObjectErrorMessage
+  | CopiedMessage;
 
 export type WebviewToHostMessage =
   | { type: 'ready' }
   /** Asks for a table's or view's columns and row estimate; the count follows by itself. */
   | { type: 'openObject'; name: string }
   /** Asks for `count` rows from position `start`; `total` is the row count the grid assumes. */
-  | { type: 'rows'; request: number; name: string; start: number; count: number; total: number };
+  | { type: 'rows'; request: number; name: string; start: number; count: number; total: number }
+  /** Copies full values as tab-separated text; the extension host writes the clipboard. */
+  | { type: 'copy'; request: number; name: string; range: CopyRange };

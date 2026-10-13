@@ -1,5 +1,13 @@
 import type { DatabaseSync, SQLInputValue, StatementSync } from 'node:sqlite';
-import type { CellValue, ColumnInfo, ObjectInfo, RowPage } from '../../shared/protocol';
+import type {
+  CellValue,
+  ColumnInfo,
+  CopyRange,
+  CopyResult,
+  ObjectInfo,
+  RowPage,
+} from '../../shared/protocol';
+import { COPY_LIMIT, COPY_ROWS, realText, tsvField } from '../../shared/values';
 
 /** Text longer than this is cut for the grid; the cell says how long it really is. */
 export const TEXT_LIMIT = 1000;
@@ -26,6 +34,9 @@ interface XInfoRow {
   pk: number;
   hidden: number;
 }
+
+/** A copy's text and how much of the selection it holds. */
+export type CopiedText = CopyResult & { text: string };
 
 /** A known row: its position in the grid and its rowid. */
 interface Anchor {
@@ -74,15 +85,7 @@ export class TableReader {
       }));
 
     this.from = `FROM main.${quote(name)}`;
-    const values = columns.flatMap(({ name: column }) => {
-      const c = quote(column);
-      return [
-        `typeof(${c})`,
-        `CASE typeof(${c}) WHEN 'text' THEN substr(${c}, 1, ${TEXT_LIMIT}) WHEN 'blob' THEN substr(${c}, 1, ${BLOB_HEAD}) ELSE ${c} END`,
-        `length(${c})`,
-      ];
-    });
-    this.select = `SELECT ${hasRowid ? 'rowid, ' : ''}${values.join(', ')}`;
+    this.select = `SELECT ${hasRowid ? 'rowid, ' : ''}${valueList(columns, TEXT_LIMIT, BLOB_HEAD)}`;
 
     let estimate: number | null = null;
     if (hasRowid) {
@@ -139,14 +142,103 @@ export class TableReader {
       );
       return { ...page, end: false };
     }
-    const spanSize = Number(this.span.max - this.span.min + 1n);
-    const target = this.span.min + BigInt(Math.floor((start / Math.max(total, 1)) * spanSize));
     return this.read(
       `${this.select} ${this.from} WHERE rowid >= ? ORDER BY rowid LIMIT ?`,
-      [target, count],
+      [this.estimateRowid(start, total), count],
       start,
       count,
     );
+  }
+
+  /**
+   * The full values of a block of cells as tab-separated text, the rows found as `page` finds
+   * them, so the copy is what the grid shows. One cell copies as its bare value. Stops at
+   * COPY_ROWS rows or COPY_LIMIT characters: reading a million rows of a 24 GB MBTiles, where
+   * each row's tile sits beside it, already takes a second, and scrolling waits for it.
+   */
+  copy(range: CopyRange): CopiedText {
+    const columns = this.info.columns.slice(range.firstColumn, range.lastColumn + 1);
+    const select = `SELECT ${valueList(columns, COPY_LIMIT, COPY_LIMIT / 2)} ${this.from}`;
+    // One row more than a copy holds tells that there were more.
+    const limit = Math.min(range.count ?? Infinity, COPY_ROWS + 1);
+    let sql: string;
+    let params: SQLInputValue[];
+    if (this.info.hasRowid && this.span) {
+      const first = this.rowidAt(range.start, range.total);
+      if (first === undefined) {
+        return { text: '', rows: 0, cells: 0, stopped: false, cut: false };
+      }
+      sql = `${select} WHERE rowid >= ? ORDER BY rowid LIMIT ?`;
+      params = [first, limit];
+    } else {
+      sql = `${select} LIMIT ? OFFSET ?`;
+      params = [limit, range.start];
+    }
+    const statement = this.db.prepare(sql);
+    statement.setReadBigInts(true);
+    statement.setReturnArrays(true);
+
+    const single = range.count === 1 && columns.length === 1;
+    const lines: string[] = [];
+    let size = 0;
+    let stopped = false;
+    let cut = false;
+    for (const row of statement.iterate(...params) as Iterable<unknown[]>) {
+      if (lines.length === COPY_ROWS) {
+        stopped = true;
+        break;
+      }
+      const fields: string[] = [];
+      for (let c = 0; c < columns.length; c++) {
+        const kind = row[c * 3] as string;
+        const text = copyText(kind, row[c * 3 + 1]);
+        cut ||= Number(row[c * 3 + 2]) > (kind === 'blob' ? COPY_LIMIT / 2 : COPY_LIMIT);
+        fields.push(single ? text : tsvField(text));
+      }
+      const line = fields.join('\t');
+      if (lines.length > 0 && size + line.length > COPY_LIMIT) {
+        stopped = true;
+        break;
+      }
+      lines.push(line);
+      size += line.length + 1;
+    }
+    return {
+      text: lines.join('\n'),
+      rows: lines.length,
+      cells: lines.length * columns.length,
+      stopped,
+      cut,
+    };
+  }
+
+  /** The rowid at a grid position, found the way `page` finds the first row of a page. */
+  private rowidAt(position: number, total: number): bigint | undefined {
+    const below = this.nearest(position, -1);
+    const above = this.nearest(position, 1);
+    let sql: string;
+    let params: SQLInputValue[];
+    if (below && position - below.position <= NEAR) {
+      sql = 'WHERE rowid >= ? ORDER BY rowid LIMIT 1 OFFSET ?';
+      params = [below.rowid, position - below.position];
+    } else if (above && above.position - position <= NEAR) {
+      sql = 'WHERE rowid <= ? ORDER BY rowid DESC LIMIT 1 OFFSET ?';
+      params = [above.rowid, above.position - position];
+    } else {
+      sql = 'WHERE rowid >= ? ORDER BY rowid LIMIT 1';
+      params = [this.estimateRowid(position, total)];
+    }
+    const statement = this.db.prepare(`SELECT rowid AS r ${this.from} ${sql}`);
+    statement.setReadBigInts(true);
+    const row = statement.get(...params) as { r: bigint } | undefined;
+    return row?.r;
+  }
+
+  /** Where a position falls in the rowid span, as if rowids had no gaps. */
+  private estimateRowid(position: number, total: number): bigint {
+    const span = this.span as { min: bigint; max: bigint };
+    const size = Number(span.max - span.min + 1n);
+    return span.min + BigInt(Math.floor((position / Math.max(total, 1)) * size));
   }
 
   private nearest(position: number, direction: -1 | 1): Anchor | undefined {
@@ -212,6 +304,38 @@ export class TableReader {
     if (this.anchors.length > 400) {
       this.anchors.splice(0, this.anchors.length - 400);
     }
+  }
+}
+
+/**
+ * Each column's storage class, value and length. Text and BLOBs are read only up to a limit,
+ * so a gigabyte BLOB costs no more than its first bytes.
+ */
+function valueList(columns: ColumnInfo[], textLimit: number, blobLimit: number): string {
+  return columns
+    .flatMap(({ name }) => {
+      const c = quote(name);
+      return [
+        `typeof(${c})`,
+        `CASE typeof(${c}) WHEN 'text' THEN substr(${c}, 1, ${textLimit}) WHEN 'blob' THEN substr(${c}, 1, ${blobLimit}) ELSE ${c} END`,
+        `length(${c})`,
+      ];
+    })
+    .join(', ');
+}
+
+/** One value as copied: NULL as nothing, numbers as the grid shows them, BLOBs as hex. */
+function copyText(kind: string, value: unknown): string {
+  switch (kind) {
+    case 'null':
+      return '';
+    case 'real':
+      return realText(value as number);
+    case 'blob':
+      // An empty BLOB comes back as null.
+      return value ? Buffer.from(value as Uint8Array).toString('hex') : '';
+    default:
+      return String(value);
   }
 }
 

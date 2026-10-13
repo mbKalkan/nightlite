@@ -69,6 +69,20 @@ const tests: Record<string, () => Promise<void>> = {
       assert.equal(page.rows.length, 100);
       assert.equal(page.rowids?.[99], '5000');
       assert.equal(await client.count('events'), 5000);
+      const copied = await client.copy('events', {
+        start: 4998,
+        count: null,
+        total: 5000,
+        firstColumn: 0,
+        lastColumn: 0,
+      });
+      assert.deepEqual(copied, {
+        text: '4999\n5000',
+        rows: 2,
+        cells: 2,
+        stopped: false,
+        cut: false,
+      });
     } finally {
       client.dispose();
     }

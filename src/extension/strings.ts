@@ -69,5 +69,14 @@ export function viewerStrings(l10n: Localizer): ViewerStrings {
     rowid: l10n.t('rowid'),
     primaryKey: l10n.t('Primary key'),
     rowsErrorTitle: l10n.t("These rows couldn't be read"),
+    oneColumn: l10n.t('1 column'),
+    characters: l10n.t('{0} characters'),
+    copying: l10n.t('Copying…'),
+    copiedValue: l10n.t('Copied the value.'),
+    copiedRow: l10n.t('Copied 1 row.'),
+    copiedRows: l10n.t('Copied {0} rows.'),
+    copiedStopped: l10n.t('Copied the first {0} rows: a copy holds at most {1} rows or {2}.'),
+    copiedCut: l10n.t('Copied, with values longer than {0} cut short.'),
+    copyFailed: l10n.t("Couldn't copy: {0}"),
   };
 }

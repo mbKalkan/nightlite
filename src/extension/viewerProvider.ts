@@ -54,7 +54,7 @@ export class ViewerProvider implements vscode.CustomReadonlyEditorProvider<Datab
         if (message.type === 'ready') {
           void this.load(document, post);
         } else {
-          void answer(message, document, post);
+          void answer(message, document, post, (text) => vscode.env.clipboard.writeText(text));
         }
       }),
       panel.onDidChangeViewState(() => this.track(editor)),

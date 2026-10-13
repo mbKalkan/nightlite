@@ -1,5 +1,6 @@
 import type { CellValue } from '../../shared/protocol';
 import { formatBytes } from '../../shared/units';
+import { realText } from '../../shared/values';
 
 /** What a BLOB holds, told from its first bytes; undefined when it isn't a known kind. */
 export function blobKind(head: string): string | undefined {
@@ -47,11 +48,7 @@ export function renderCell(
     case 'i':
       return { html: escapeHtml(String(value)), className: 'nl-number' };
     case 'f': {
-      // A REAL that happens to be whole still reads as a real, as SQLite prints it.
-      const text =
-        typeof value === 'number' && Number.isInteger(value) && Math.abs(value) < 1e21
-          ? value.toFixed(1)
-          : String(value);
+      const text = typeof value === 'number' ? realText(value) : String(value);
       return { html: escapeHtml(text), className: 'nl-number' };
     }
     case 'b': {
@@ -71,9 +68,21 @@ export function renderCell(
   }
 }
 
-/** The text a cell shows, for measuring column widths. */
+/** The text a cell shows, as plain text: for measuring columns and for the status bar. */
 export function cellText(value: CellValue, type: string, locale: string): string {
-  return renderCell(value, type, locale)
-    .html.replace(/<[^>]+>/g, ' ')
-    .replace(/&[a-z]+;/g, 'x');
+  switch (type) {
+    case 'n':
+    case 'i':
+    case 'f':
+    case 'b':
+      // No markup or entities in these.
+      return renderCell(value, type, locale).html;
+    default: {
+      const text =
+        value !== null && typeof value === 'object' && 'text' in value
+          ? `${value.text}…`
+          : String(value ?? '');
+      return text.replace(/\r\n|\r|\n/g, '↵').replace(/\t/g, '→');
+    }
+  }
 }

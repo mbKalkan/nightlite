@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blobKind, renderCell } from '../../src/webview/grid/cells';
+import { blobKind, cellText, renderCell } from '../../src/webview/grid/cells';
 
 describe('renderCell', () => {
   it('aligns numbers and keeps reals looking like reals', () => {
@@ -28,6 +28,16 @@ describe('renderCell', () => {
       className: 'nl-blob',
     });
     expect(renderCell({ size: 3, head: '000102' }, 'b', 'tr').html).toBe('BLOB · 3 B');
+  });
+});
+
+describe('cellText', () => {
+  it('gives the text a cell shows, without markup', () => {
+    expect(cellText('<b>a\nb\tc</b> & co', 't', 'en')).toBe('<b>a↵b→c</b> & co');
+    expect(cellText({ text: 'abc', length: 5000 }, 't', 'en')).toBe('abc…');
+    expect(cellText(14, 'f', 'en')).toBe('14.0');
+    expect(cellText(null, 'n', 'en')).toBe('NULL');
+    expect(cellText({ size: 2048, head: '1f8b' }, 'b', 'en')).toBe('gzip · 2 KB');
   });
 });
 

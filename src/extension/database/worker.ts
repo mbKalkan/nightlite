@@ -25,6 +25,8 @@ function handle(call: WorkerCall): unknown {
       return reader(call.name).page(call.start, call.count, call.total);
     case 'count':
       return reader(call.name).count();
+    case 'copy':
+      return reader(call.name).copy(call.range);
   }
 }
 
