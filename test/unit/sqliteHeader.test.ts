@@ -72,6 +72,22 @@ describe('parseHeader', () => {
   });
 });
 
+describe('parseHeader on the fixtures', () => {
+  it('sees the write-ahead log of a WAL database', () => {
+    const { bytes, size } = fixture('wal.sqlite');
+    expect('header' in parseHeader(bytes, size) && parseHeader(bytes, size)).toMatchObject({
+      header: { wal: true },
+    });
+  });
+
+  it('reads the header of a database with no tables, and of one whose pages are damaged', () => {
+    for (const name of ['no-tables.sqlite', 'corrupt.sqlite']) {
+      const { bytes, size } = fixture(name);
+      expect(parseHeader(bytes, size), name).toHaveProperty('header');
+    }
+  });
+});
+
 describe('describeFile', () => {
   it('names the format from the application ID the file declares', () => {
     for (const [name, format] of [
