@@ -25,6 +25,16 @@ const extension = {
   external: ['vscode'],
 };
 
+/**
+ * Each open database gets a worker thread running this, so queries never block VS Code.
+ * @type {import('esbuild').BuildOptions}
+ */
+const databaseWorker = {
+  ...extension,
+  entryPoints: ['src/extension/database/worker.ts'],
+  outfile: 'dist/databaseWorker.js',
+};
+
 /** @type {import('esbuild').BuildOptions} */
 const webview = {
   ...shared,
@@ -38,9 +48,11 @@ const webview = {
 };
 
 if (watch) {
-  const contexts = await Promise.all([esbuild.context(extension), esbuild.context(webview)]);
+  const contexts = await Promise.all(
+    [extension, databaseWorker, webview].map((options) => esbuild.context(options)),
+  );
   await Promise.all(contexts.map((ctx) => ctx.watch()));
 } else {
   rmSync('dist', { recursive: true, force: true });
-  await Promise.all([esbuild.build(extension), esbuild.build(webview)]);
+  await Promise.all([extension, databaseWorker, webview].map((options) => esbuild.build(options)));
 }

@@ -1,11 +1,15 @@
 // Runs inside a real VS Code instance (see scripts/smoke.mjs).
 import * as assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { DatabaseClient } from '../../src/extension/database/client';
+import { connectionTarget } from '../../src/extension/database/target';
 
 const EXTENSION_ID = 'MBKDevStudio.nightlite';
 const VIEW_TYPE = 'nightlite.viewer';
 const FIXTURES = path.resolve(__dirname, '../../test/fixtures');
+const WORKER = path.resolve(__dirname, '../../dist/databaseWorker.js');
 
 async function waitFor<T>(probe: () => T | undefined, timeoutMs = 30_000): Promise<T> {
   const start = Date.now();
@@ -42,6 +46,38 @@ const tests: Record<string, () => Promise<void>> = {
   async 'opens MBTiles and GeoPackage files in the viewer by default'() {
     assert.equal((await open('sample.mbtiles')).viewType, VIEW_TYPE);
     assert.equal((await open('sample.gpkg')).viewType, VIEW_TYPE);
+  },
+
+  async 'reads the schema in a worker thread of this VS Code'() {
+    const client = new DatabaseClient(WORKER);
+    try {
+      await client.open(path.join(FIXTURES, 'sample.sqlite'));
+      const names = (await client.schema()).map((object) => object.name);
+      assert.ok(names.includes('albums') && names.includes('album_list'), names.join(', '));
+    } finally {
+      client.dispose();
+    }
+  },
+
+  async 'opens a WAL database without creating files next to it'() {
+    const file = path.join(FIXTURES, 'wal.sqlite');
+    const client = new DatabaseClient(WORKER);
+    try {
+      await client.open(connectionTarget(file, true));
+      assert.deepEqual(
+        (await client.schema()).map((object) => object.name),
+        ['notes'],
+      );
+    } finally {
+      client.dispose();
+    }
+    assert.equal(existsSync(`${file}-wal`), false);
+    assert.equal(existsSync(`${file}-shm`), false);
+  },
+
+  async 'registers Go to Table'() {
+    const commands = await vscode.commands.getCommands(true);
+    assert.ok(commands.includes('nightlite.goToTable'));
   },
 
   async 'opens a file that is not a database without failing'() {
