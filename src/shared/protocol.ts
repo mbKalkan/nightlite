@@ -202,6 +202,7 @@ export interface ViewerStrings {
   copiedCut: string;
   copyFailed: string;
   /** The cell detail panel: its name, the toolbar button that shows it, and its parts. */
+  reopenWith: string;
   cellDetail: string;
   resizeDetail: string;
   copyValue: string;
@@ -453,6 +454,8 @@ export type HostToWebviewMessage =
 
 export type WebviewToHostMessage =
   | { type: 'ready' }
+  /** Opens VS Code's picker to show the file in another editor, as for a file this can't show. */
+  | { type: 'reopenWith' }
   /** Asks for a table's or view's columns and row estimate; the count follows by itself. */
   | { type: 'openObject'; name: string }
   /** Asks for `count` rows from position `start`; `total` is the row count the grid assumes. */

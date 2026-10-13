@@ -78,6 +78,7 @@ export function viewerStrings(l10n: Localizer): ViewerStrings {
     copiedStopped: l10n.t('Copied the first {0} rows: a copy holds at most {1} rows or {2}.'),
     copiedCut: l10n.t('Copied, with values longer than {0} cut short.'),
     copyFailed: l10n.t("Couldn't copy: {0}"),
+    reopenWith: l10n.t('Reopen With…'),
     cellDetail: l10n.t('Cell details'),
     resizeDetail: l10n.t('Resize cell details'),
     copyValue: l10n.t('Copy value'),

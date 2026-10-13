@@ -4,6 +4,7 @@ import { describeFile } from '../shared/sqliteHeader';
 import { DatabaseDocument } from './databaseDocument';
 import { classifyDatabaseError } from './databaseErrors';
 import { readFileHeader } from './fileHeader';
+import { watchDatabase } from './fileWatcher';
 import { pickObject } from './objectPicker';
 import { answer } from './requests';
 import { viewerStrings } from './strings';
@@ -34,7 +35,11 @@ export class ViewerProvider implements vscode.CustomReadonlyEditorProvider<Datab
 
   openCustomDocument(uri: vscode.Uri): DatabaseDocument {
     const worker = vscode.Uri.joinPath(this.extensionUri, 'dist', 'databaseWorker.js');
-    return new DatabaseDocument(uri, worker.fsPath);
+    const document = new DatabaseDocument(uri, worker.fsPath);
+    if (uri.scheme === 'file') {
+      document.own(watchDatabase(uri, () => document.reset()));
+    }
+    return document;
   }
 
   resolveCustomEditor(document: DatabaseDocument, panel: vscode.WebviewPanel): void {
@@ -53,10 +58,17 @@ export class ViewerProvider implements vscode.CustomReadonlyEditorProvider<Datab
       panel.webview.onDidReceiveMessage((message: WebviewToHostMessage) => {
         if (message.type === 'ready') {
           void this.load(document, post);
+        } else if (message.type === 'reopenWith') {
+          void vscode.commands.executeCommand('workbench.action.reopenWithEditor', document.uri);
         } else {
-          void answer(message, document, post, (text) => vscode.env.clipboard.writeText(text));
+          // An answer worked out before the file changed would describe the file as it was.
+          const generation = document.generation;
+          const current = (reply: HostToWebviewMessage) =>
+            document.generation === generation ? post(reply) : Promise.resolve(false);
+          void answer(message, document, current, (text) => vscode.env.clipboard.writeText(text));
         }
       }),
+      document.onReset(() => void this.load(document, post)),
       panel.onDidChangeViewState(() => this.track(editor)),
     ];
     this.track(editor);

@@ -10,7 +10,7 @@ import { formatBytes, formatCount } from '../shared/units';
 import { COPY_LIMIT, COPY_ROWS, realText } from '../shared/values';
 import { CellDetail, type CellPlace } from './detail/cellDetail';
 import { STORAGE_CLASSES, cellText } from './grid/cells';
-import { DataGrid, type CellRange } from './grid/dataGrid';
+import { DataGrid, type CellRange, type GridPosition } from './grid/dataGrid';
 import { databaseErrorMessage, element, format } from './views';
 
 type DataMessage = Extract<
@@ -25,6 +25,8 @@ export interface DataViewOptions {
   onDetail(open: boolean): void;
   /** The panel's width as last resized, in pixels. */
   detailWidth?: number;
+  /** Where the grid was when this table was last shown. */
+  position?: GridPosition;
   onDetailWidth(width: number): void;
 }
 
@@ -135,6 +137,7 @@ export class DataView {
           this.options.detailWidth,
         );
         this.detail.element.hidden = !this.detailOpen;
+        if (this.options.position) this.grid.restore(this.options.position);
         this.main.replaceChildren(this.grid.element, this.detail.element);
         this.element.replaceChildren(this.main, this.footer);
         this.showCounts(message.info.estimate ?? 0, false);
@@ -197,6 +200,11 @@ export class DataView {
 
   focus(): void {
     this.grid?.element.focus();
+  }
+
+  /** Where the grid is, to come back to; undefined before the rows show. */
+  position(): GridPosition | undefined {
+    return this.grid?.position;
   }
 
   /** Opens or closes the cell detail panel; `focus` puts the keyboard in it. */

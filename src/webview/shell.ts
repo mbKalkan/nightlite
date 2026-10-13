@@ -8,6 +8,7 @@ import type {
   WebviewToHostMessage,
 } from '../shared/protocol';
 import { DataView } from './dataView';
+import type { GridPosition } from './grid/dataGrid';
 import { icons } from './icons';
 import { MbtilesView, countsComplete, type TilesState } from './mbtiles/summary';
 import { detailsSections } from './schemaDetails';
@@ -62,6 +63,8 @@ export class Shell {
   private summary: MbtilesView | undefined;
   /** Objects' columns, indexes and foreign keys, by name, as the host sent them. */
   private details = new Map<string, DetailsMessage>();
+  /** Where each table's grid was, so coming back to it, or reloading, returns there. */
+  private readonly positions = new Map<string, GridPosition>();
   private tab: PageTab;
   private detail: boolean;
   private detailWidth: number | undefined;
@@ -109,6 +112,8 @@ export class Shell {
   }
 
   showFile(info: FileInfo, locale: string, strings: ViewerStrings): void {
+    // The same file loaded again, after it changed: keep the page up until the schema is back.
+    const reloading = this.file !== undefined && this.tree !== undefined;
     this.file = { info, locale, strings };
     this.tiles = undefined;
     this.setFileName(info.fileName);
@@ -120,7 +125,7 @@ export class Shell {
     this.detailToggle.title = strings.cellDetail;
     this.detailToggle.setAttribute('aria-label', strings.cellDetail);
     this.markDetail();
-    this.show('overview');
+    if (!reloading) this.show('overview');
     // Until the schema arrives the database is still opening.
     this.content.setAttribute('aria-busy', 'true');
   }
@@ -156,6 +161,12 @@ export class Shell {
 
   showError(fileName: string, error: LoadError, strings: ViewerStrings): void {
     this.setFileName(fileName);
+    this.data?.dispose();
+    this.data = undefined;
+    this.summary = undefined;
+    // A file that can't be shown starts afresh once it can be again.
+    this.file = undefined;
+    this.tree = undefined;
     this.sidebar.hidden = true;
     this.tabs.hidden = true;
     this.detailToggle.hidden = true;
@@ -166,7 +177,15 @@ export class Shell {
       notOnDisk: strings.errorNotOnDisk,
     };
     this.content.removeAttribute('aria-busy');
-    this.content.replaceChildren(messageView(strings.errorTitle, messages[error]));
+    const box = messageView(strings.errorTitle, messages[error]);
+    // A .db file can be anything; let the user pick another editor for it.
+    if (error !== 'notOnDisk') {
+      const button = element('button', 'nl-button', strings.reopenWith);
+      button.setAttribute('type', 'button');
+      button.addEventListener('click', () => this.events.send({ type: 'reopenWith' }));
+      box.append(button);
+    }
+    this.content.replaceChildren(box);
   }
 
   /** Shows an object picked elsewhere, like Go to Table, and puts the keyboard on it. */
@@ -220,6 +239,8 @@ export class Shell {
   private show(key: EntryKey): void {
     if (!this.file) return;
     this.shown = key;
+    const position = this.data?.position();
+    if (this.data && position) this.positions.set(this.data.name, position);
     this.data?.dispose();
     this.data = undefined;
     this.summary = undefined;
@@ -245,6 +266,7 @@ export class Shell {
             this.events.onDetail(open);
           },
           detailWidth: this.detailWidth,
+          position: this.positions.get(object.name),
           onDetailWidth: (width) => {
             this.detailWidth = width;
             this.events.onDetailWidth(width);
