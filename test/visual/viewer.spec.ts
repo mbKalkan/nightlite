@@ -9,19 +9,20 @@ for (const theme of ['dark', 'light', 'hcDark', 'hcLight'] as ThemeName[]) {
   test.describe(`${theme} theme`, () => {
     test('describes a database from its header', async ({ page }) => {
       const viewer = await openViewer(page, theme);
-      await viewer.load('sample.mbtiles');
+      await viewer.load('sample.gpkg');
 
-      await expect(page.locator('.nl-file-name')).toHaveText('sample.mbtiles');
-      await expect(page.locator('.nl-title')).toHaveText('MBTiles tileset');
+      await expect(page.locator('.nl-file-name')).toHaveText('sample.gpkg');
+      await expect(page.locator('.nl-title')).toHaveText('GeoPackage');
       await expect(page.locator('.nl-facts dt')).toContainText([
         'File size',
         'Pages',
         'Text encoding',
         'Journal',
+        'User version',
         'Application ID',
         'Last written by',
       ]);
-      await expect(page.locator('.nl-facts dd').nth(4)).toHaveText('MPBX (0x4d504258)');
+      await expect(page.locator('.nl-facts dd').nth(5)).toHaveText('GPKG (0x47504b47)');
       await page.screenshot({ path: `${SCREENS}/overview-${theme}.png` });
       expect(viewer.problems).toEqual([]);
     });

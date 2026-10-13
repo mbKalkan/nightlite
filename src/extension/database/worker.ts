@@ -2,6 +2,7 @@
 // extension host responsive; cancelling one means terminating this thread (D-003).
 import { DatabaseSync } from 'node:sqlite';
 import { parentPort } from 'node:worker_threads';
+import { readMbtiles, zoomCount, zoomRange } from './mbtiles';
 import type { WorkerCall, WorkerRequest, WorkerResponse } from './messages';
 import { TableReader } from './rows';
 import { readSchema } from './schema';
@@ -29,6 +30,12 @@ function handle(call: WorkerCall): unknown {
       return reader(call.name).copy(call.range);
     case 'cell':
       return reader(call.name).cell(call.row, call.total, call.column, call.rowid);
+    case 'mbtiles':
+      return readMbtiles(connection());
+    case 'zoomRange':
+      return zoomRange(connection());
+    case 'zoomCount':
+      return zoomCount(connection(), call.zoom);
   }
 }
 

@@ -9,6 +9,7 @@ import type {
 } from '../shared/protocol';
 import { DataView } from './dataView';
 import { icons } from './icons';
+import { MbtilesView, countsComplete, type TilesState } from './mbtiles/summary';
 import { ObjectTree, objectKey, type EntryKey } from './objectTree';
 import { databaseErrorMessage, element, messageView, objectView, overviewView } from './views';
 
@@ -26,6 +27,11 @@ export interface ShellEvents {
   onDetailWidth(width: number): void;
   send(message: WebviewToHostMessage): void;
 }
+
+type TilesMessage = Extract<
+  HostToWebviewMessage,
+  { type: 'mbtiles' | 'mbtilesError' | 'zoomRange' | 'zoomCount' | 'zoomCountsEnd' }
+>;
 
 type DataMessage = Extract<
   HostToWebviewMessage,
@@ -45,6 +51,9 @@ export class Shell {
   private schemaError: { error: DatabaseError; detail: string } | undefined;
   private shown: EntryKey = 'overview';
   private data: DataView | undefined;
+  /** An MBTiles file's summary, kept while other pages are shown. */
+  private tiles: TilesState | undefined;
+  private summary: MbtilesView | undefined;
   private tab: PageTab;
   private detail: boolean;
   private detailWidth: number | undefined;
@@ -93,6 +102,7 @@ export class Shell {
 
   showFile(info: FileInfo, locale: string, strings: ViewerStrings): void {
     this.file = { info, locale, strings };
+    this.tiles = undefined;
     this.setFileName(info.fileName);
     this.sidebar.setAttribute('aria-label', strings.databaseObjects);
     this.tabs.setAttribute('aria-label', strings.pageTabs);
@@ -158,6 +168,35 @@ export class Shell {
     }
   }
 
+  /** The host's answers about an MBTiles file, kept and shown when its summary is. */
+  tilesMessage(message: TilesMessage): void {
+    const tiles = this.tiles;
+    if (!tiles) return;
+    switch (message.type) {
+      case 'mbtiles':
+        tiles.summary = message.summary;
+        this.summary?.render();
+        this.countZooms();
+        return;
+      case 'mbtilesError':
+        tiles.error = { error: message.error, detail: message.detail };
+        this.summary?.render();
+        return;
+      case 'zoomRange':
+        tiles.range = message.range;
+        break;
+      case 'zoomCount':
+        tiles.counts.set(message.zoom, message.count);
+        break;
+      case 'zoomCountsEnd':
+        tiles.counting = false;
+        // Stopped while shown means it failed; stopped for a table's count, it resumes here.
+        tiles.failed = !message.complete && this.summary !== undefined;
+        break;
+    }
+    this.summary?.renderZooms();
+  }
+
   /** Hands the host's answers about tables and views to the rows on screen. */
   dataMessage(message: DataMessage): void {
     this.data?.receive(message);
@@ -168,6 +207,7 @@ export class Shell {
     this.shown = key;
     this.data?.dispose();
     this.data = undefined;
+    this.summary = undefined;
     const { info, locale, strings } = this.file;
     const object = this.objects.get(key);
     const hasRows = object?.type === 'table' || object?.type === 'view';
@@ -201,6 +241,17 @@ export class Shell {
       this.content.replaceChildren(objectView(object, strings));
       return;
     }
+    if (info.format === 'mbtiles' && this.tree && !this.schemaError) {
+      this.tiles ??= { counts: new Map(), counting: false, failed: false };
+      this.summary = new MbtilesView(info, locale, strings, this.tiles);
+      this.content.replaceChildren(this.summary.element);
+      if (!this.tiles.summary && !this.tiles.error) {
+        this.events.send({ type: 'mbtiles' });
+      } else {
+        this.countZooms();
+      }
+      return;
+    }
     const parts: HTMLElement[] = [overviewView(info, locale, strings)];
     if (this.schemaError) {
       parts.push(
@@ -212,6 +263,18 @@ export class Shell {
       );
     }
     this.content.replaceChildren(...parts);
+  }
+
+  /** Counts tiles by zoom level while the summary is shown, picking up where it stopped. */
+  private countZooms(): void {
+    const tiles = this.tiles;
+    if (!tiles?.summary?.tiles || !this.summary || tiles.counting || countsComplete(tiles)) {
+      return;
+    }
+    tiles.counting = true;
+    tiles.failed = false;
+    this.summary.renderZooms();
+    this.events.send({ type: 'zoomCounts', skip: [...tiles.counts.keys()] });
   }
 
   private setTab(tab: PageTab, focus: boolean): void {

@@ -1,5 +1,13 @@
 import { Worker } from 'node:worker_threads';
-import type { CopyRange, FullCell, ObjectInfo, RowPage, SchemaObject } from '../../shared/protocol';
+import type {
+  CopyRange,
+  FullCell,
+  MbtilesSummary,
+  ObjectInfo,
+  RowPage,
+  SchemaObject,
+  ZoomRange,
+} from '../../shared/protocol';
 import type { WorkerCall, WorkerFailure, WorkerResponse } from './messages';
 import type { CopiedText } from './rows';
 
@@ -59,6 +67,18 @@ export class DatabaseClient {
     rowid?: string,
   ): Promise<FullCell> {
     return this.call({ type: 'cell', name, row, total, column, rowid }) as Promise<FullCell>;
+  }
+
+  mbtiles(): Promise<MbtilesSummary> {
+    return this.call({ type: 'mbtiles' }) as Promise<MbtilesSummary>;
+  }
+
+  zoomRange(): Promise<ZoomRange | null> {
+    return this.call({ type: 'zoomRange' }) as Promise<ZoomRange | null>;
+  }
+
+  zoomCount(zoom: number): Promise<number> {
+    return this.call({ type: 'zoomCount', zoom }) as Promise<number>;
   }
 
   dispose(): void {

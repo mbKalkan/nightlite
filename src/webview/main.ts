@@ -64,6 +64,13 @@ window.addEventListener('message', (event: MessageEvent<HostToWebviewMessage>) =
     case 'cellValue':
       shell.dataMessage(message);
       break;
+    case 'mbtiles':
+    case 'mbtilesError':
+    case 'zoomRange':
+    case 'zoomCount':
+    case 'zoomCountsEnd':
+      shell.tilesMessage(message);
+      break;
   }
 });
 
