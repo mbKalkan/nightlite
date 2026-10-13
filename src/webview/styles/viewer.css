@@ -543,6 +543,27 @@ body.vscode-high-contrast .nl-sql-keyword {
   font-weight: 600;
 }
 
+/* A button as VS Code draws its own. */
+.nl-button {
+  margin-top: 8px;
+  padding: 4px 14px;
+  border: 1px solid var(--vscode-button-border, transparent);
+  border-radius: 2px;
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  font: inherit;
+  cursor: pointer;
+}
+
+.nl-button:hover {
+  background: var(--vscode-button-hoverBackground);
+}
+
+.nl-button:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 2px;
+}
+
 .nl-error-message {
   max-width: 440px;
   margin: 0;

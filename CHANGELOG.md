@@ -8,10 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- SQLite databases (`.sqlite`, `.sqlite3`, `.db3`), MBTiles (`.mbtiles`) and GeoPackage (`.gpkg`)
+- SQLite databases (`.sqlite`, `.sqlite3`, `.db`, `.db3`), MBTiles (`.mbtiles`) and GeoPackage (`.gpkg`)
   files open in Nightlite. It reads only the file's header, so even very large files open at
   once, and shows what kind of file it is, its size, pages, text encoding and journal mode.
-  Files that aren't SQLite databases, or are encrypted or empty, are explained in plain words.
+  Files that aren't SQLite databases, or are encrypted or empty, are explained in plain words,
+  with **Reopen With…** at hand for a `.db` file that belongs to another program.
 - A sidebar lists the database's tables, views, indexes and triggers, with how many of each.
   Pick one to see the statement that created it, with its traits (virtual, `WITHOUT ROWID`,
   `STRICT`, SQLite's own). Move through the list with the arrow keys or by typing a name, as in
@@ -53,3 +54,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   counts, and its metadata as the MBTiles 1.3 spec reads it. Missing or unreadable keys, and zoom
   levels the tiles contradict, are pointed out. Deduplicated tilesets, where `tiles` is a view,
   are recognized.
+- When the file changes on disk, the viewer reloads it and comes back to the same table, rows and
+  selected cell. Each table also keeps its place while you look at others.

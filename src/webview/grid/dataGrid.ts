@@ -35,6 +35,14 @@ export interface CellRange {
   col2: number;
 }
 
+/** Where the grid was: its scroll position and selection, to come back to. */
+export interface GridPosition {
+  top: number;
+  left: number;
+  anchor: CellPosition;
+  focus: CellPosition;
+}
+
 export interface GridEvents {
   request(start: number, count: number, total: number): void;
   onTotal(total: number, exact: boolean): void;
@@ -77,6 +85,8 @@ export class DataGrid {
   private anchor: CellPosition = { row: 0, col: 0 };
   private focus: CellPosition = { row: 0, col: 0 };
   private drag: Drag | undefined;
+  /** A position to return to, once the grid has a size and enough rows to scroll to it. */
+  private pendingRestore: GridPosition | undefined;
   private readonly onCopy = (event: ClipboardEvent) => this.copy(event);
   private readonly onMouseUp = () => (this.drag = undefined);
   /**
@@ -146,6 +156,21 @@ export class DataGrid {
 
   columnName(col: number): string | undefined {
     return this.info.columns[col]?.name;
+  }
+
+  get position(): GridPosition {
+    return {
+      top: this.logicalTop,
+      left: this.element.scrollLeft,
+      anchor: { ...this.anchor },
+      focus: { ...this.focus },
+    };
+  }
+
+  /** Returns to where the grid was, as when reopening a table or reloading a changed file. */
+  restore(position: GridPosition): void {
+    this.pendingRestore = position;
+    this.layout();
   }
 
   get activeCell(): CellPosition {
@@ -229,7 +254,23 @@ export class DataGrid {
     const maxScroll = Math.max(0, HEADER_HEIGHT + scrolled - this.element.clientHeight);
     this.scale = content > MAX_SCROLL_HEIGHT && maxScroll > 0 ? this.maxLogical() / maxScroll : 1;
     this.logicalTop = Math.min(this.logicalTop, this.maxLogical());
+    this.applyRestore();
     this.schedule();
+  }
+
+  private applyRestore(): void {
+    const position = this.pendingRestore;
+    if (!position || this.element.clientHeight === 0) return;
+    // Past the estimated end, wait for the count: the rows may be there.
+    if (position.top > this.maxLogical() && !this.exact) return;
+    this.pendingRestore = undefined;
+    this.anchor = this.clamp(position.anchor);
+    this.focus = this.clamp(position.focus);
+    this.logicalTop = Math.min(position.top, this.maxLogical());
+    this.element.scrollTop = this.logicalTop / this.scale;
+    this.element.scrollLeft = position.left;
+    this.paintHeader();
+    this.events.onSelection();
   }
 
   /** How far the rows can scroll: all of them minus what fits in the view. */

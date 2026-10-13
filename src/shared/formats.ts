@@ -5,6 +5,7 @@ const EXTENSION_FORMATS: Readonly<Record<string, FileFormat>> = {
   '.sqlite': 'sqlite',
   '.sqlite3': 'sqlite',
   '.db3': 'sqlite',
+  '.db': 'sqlite',
   '.mbtiles': 'mbtiles',
   '.gpkg': 'geopackage',
 };

@@ -33,6 +33,9 @@ for (const theme of ['dark', 'light', 'hcDark', 'hcLight'] as ThemeName[]) {
 
       await expect(page.locator('.nl-error-title')).toHaveText("This file can't be displayed");
       await expect(page.locator('.nl-error-message')).toContainText("isn't a SQLite database");
+      // A .db file can be anything; VS Code's own picker opens it in another editor.
+      await page.getByRole('button', { name: 'Reopen With…' }).click();
+      expect((await viewer.sent()).some((message) => message.type === 'reopenWith')).toBe(true);
       await page.screenshot({ path: `${SCREENS}/not-sqlite-${theme}.png` });
       expect(viewer.problems).toEqual([]);
     });

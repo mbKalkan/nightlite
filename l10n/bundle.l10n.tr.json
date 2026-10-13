@@ -115,5 +115,6 @@
   "(expression)": "(ifade)",
   "automatic, for {0}": "otomatik, {0} için",
   "partial": "kısmi",
-  "The columns and indexes couldn't be read": "Sütunlar ve dizinler okunamadı"
+  "The columns and indexes couldn't be read": "Sütunlar ve dizinler okunamadı",
+  "Reopen With…": "Başka Düzenleyiciyle Aç…"
 }

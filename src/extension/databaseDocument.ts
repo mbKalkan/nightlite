@@ -28,6 +28,10 @@ export class DatabaseDocument implements vscode.CustomDocument, DatabaseBackend 
   private readerClient: DatabaseClient | undefined;
   private background: { client: DatabaseClient; key: string; job: Promise<unknown> } | undefined;
   private zoomJobs = 0;
+  /** Counts resets: answers worked out before one are about the file as it was. */
+  generation = 0;
+  private readonly resetListeners = new Set<() => void>();
+  private readonly owned: { dispose(): void }[] = [];
   private objects: Promise<SchemaObject[]> | undefined;
   private readonly counts = new Map<string, Promise<number>>();
 
@@ -101,7 +105,34 @@ export class DatabaseDocument implements vscode.CustomDocument, DatabaseBackend 
     });
   }
 
+  /**
+   * The file changed on disk: drops the connections and everything read through them, so the
+   * next question opens the file afresh, and tells the editors to load it again.
+   */
+  reset(): void {
+    this.close();
+    this.generation++;
+    for (const listener of this.resetListeners) listener();
+  }
+
+  onReset(listener: () => void): { dispose(): void } {
+    this.resetListeners.add(listener);
+    return { dispose: () => this.resetListeners.delete(listener) };
+  }
+
+  /** Something to dispose of with the document, like its file watcher. */
+  own(disposable: { dispose(): void }): void {
+    this.owned.push(disposable);
+  }
+
   dispose(): void {
+    this.close();
+    this.owned.forEach((disposable) => disposable.dispose());
+    this.owned.length = 0;
+    this.resetListeners.clear();
+  }
+
+  private close(): void {
     this.readerClient?.dispose();
     this.background?.client.dispose();
     this.readerClient = undefined;
@@ -120,7 +151,7 @@ export class DatabaseDocument implements vscode.CustomDocument, DatabaseBackend 
         return client;
       } catch (error) {
         // Let a later attempt, after the file changes, start over.
-        this.dispose();
+        this.close();
         throw error;
       }
     })();

@@ -82,7 +82,8 @@
         "extensions": [
           ".sqlite",
           ".sqlite3",
-          ".db3"
+          ".db3",
+          ".db"
         ]
       },
       {
@@ -117,6 +118,9 @@
           },
           {
             "filenamePattern": "*.db3"
+          },
+          {
+            "filenamePattern": "*.db"
           },
           {
             "filenamePattern": "*.mbtiles"

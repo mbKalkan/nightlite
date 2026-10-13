@@ -197,7 +197,8 @@ export async function openViewer(page: Page, theme: ThemeName) {
         return;
       }
       await this.post({ type: 'load', file: result.file, locale: 'en', strings });
-      await page.waitForSelector('.nl-overview');
+      // Loading the same file again keeps the page up while the database reopens.
+      await page.waitForSelector('.nl-overview, .nl-content[aria-busy="true"]');
       if (!schema) return;
       database?.db.close();
       const db = new DatabaseSync(connectionTarget(path, result.file.header.wal), {

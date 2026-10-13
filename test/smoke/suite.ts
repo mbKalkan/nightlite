@@ -1,11 +1,14 @@
 // Runs inside a real VS Code instance (see scripts/smoke.mjs).
 import * as assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import * as path from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import * as vscode from 'vscode';
 import { DatabaseClient } from '../../src/extension/database/client';
 import { connectionTarget } from '../../src/extension/database/target';
 import { DatabaseDocument } from '../../src/extension/databaseDocument';
+import { watchDatabase } from '../../src/extension/fileWatcher';
 
 const EXTENSION_ID = 'MBKDevStudio.nightlite';
 const VIEW_TYPE = 'nightlite.viewer';
@@ -28,10 +31,12 @@ async function waitFor<T>(probe: () => T | undefined, timeoutMs = 30_000): Promi
 
 /** Opens a fixture the way a click in the Explorer does and returns the editor tab's input. */
 async function open(name: string): Promise<vscode.TabInputCustom> {
-  await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(path.join(FIXTURES, name)));
+  const file = path.isAbsolute(name) ? name : path.join(FIXTURES, name);
+  await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(file));
   return waitFor(() => {
     const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
-    return tab?.input instanceof vscode.TabInputCustom && tab.input.uri.path.endsWith(name)
+    return tab?.input instanceof vscode.TabInputCustom &&
+      tab.input.uri.path.endsWith(`/${path.basename(file)}`)
       ? tab.input
       : undefined;
   });
@@ -47,6 +52,49 @@ const tests: Record<string, () => Promise<void>> = {
   async 'opens MBTiles and GeoPackage files in the viewer by default'() {
     assert.equal((await open('sample.mbtiles')).viewType, VIEW_TYPE);
     assert.equal((await open('sample.gpkg')).viewType, VIEW_TYPE);
+  },
+
+  async 'opens .db files in the viewer, and notices when one changes'() {
+    // A copy of its own, outside any workspace folder, as files are opened from anywhere.
+    const folder = mkdtempSync(path.join(tmpdir(), 'nightlite-smoke-db-'));
+    const file = path.join(folder, 'copy.db');
+    copyFileSync(path.join(FIXTURES, 'sample.sqlite'), file);
+    let changes = 0;
+    const watcher = watchDatabase(vscode.Uri.file(file), () => changes++, 100);
+    try {
+      assert.equal((await open(file)).viewType, VIEW_TYPE);
+      // Give the watcher a moment to start before the file changes.
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const writer = new DatabaseSync(file);
+      writer.exec('CREATE TABLE added (x)');
+      writer.close();
+      await waitFor(() => (changes > 0 ? true : undefined), 15_000);
+
+      // A reset drops what was read, so the next count sees the change.
+      const document = new DatabaseDocument(vscode.Uri.file(file), WORKER);
+      try {
+        assert.equal(await document.count('events'), 5000);
+        const more = new DatabaseSync(file);
+        more.exec("INSERT INTO events (at) VALUES ('2026-01-01')");
+        more.close();
+        let told = false;
+        document.onReset(() => (told = true));
+        document.reset();
+        assert.ok(told);
+        assert.equal(document.generation, 1);
+        assert.equal(await document.count('events'), 5001);
+      } finally {
+        document.dispose();
+      }
+    } finally {
+      watcher.dispose();
+      await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+      try {
+        rmSync(folder, { recursive: true, force: true });
+      } catch {
+        // The viewer's worker may still hold the file for a moment on Windows.
+      }
+    }
   },
 
   async 'reads the schema in a worker thread of this VS Code'() {
