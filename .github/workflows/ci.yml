@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:visual
+      - run: xvfb-run -a npm run test:smoke
+      # The lowest VS Code version package.json accepts.
+      - name: Smoke test on the oldest supported VS Code
+        run: |
+          version="$(node -p "require('./package.json').engines.vscode.replace(/^\^/, '')")"
+          VSCODE_VERSION="$version" xvfb-run -a npm run test:smoke
+      - run: npm run package -- --out nightlite.vsix
+      - uses: actions/upload-artifact@v7
+        with:
+          name: nightlite-vsix
+          path: nightlite.vsix
+          retention-days: 7
