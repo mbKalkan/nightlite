@@ -68,6 +68,10 @@ window.addEventListener('message', (event: MessageEvent<HostToWebviewMessage>) =
     case 'objectDetailsError':
       shell.detailsMessage(message);
       break;
+    case 'tableSummary':
+    case 'tableSummariesEnd':
+      shell.tablesMessage(message);
+      break;
     case 'mbtiles':
     case 'mbtilesError':
     case 'zoomRange':

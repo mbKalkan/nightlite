@@ -8,6 +8,7 @@ import type {
   WebviewToHostMessage,
 } from '../shared/protocol';
 import { DataView } from './dataView';
+import { DatabaseOverview, listedTables, type TablesState } from './databaseOverview';
 import type { GridPosition } from './grid/dataGrid';
 import { icons } from './icons';
 import { MbtilesView, countsComplete, type TilesState } from './mbtiles/summary';
@@ -35,6 +36,8 @@ type DetailsMessage = Extract<
   { type: 'objectDetails' | 'objectDetailsError' }
 >;
 
+type TablesMessage = Extract<HostToWebviewMessage, { type: 'tableSummary' | 'tableSummariesEnd' }>;
+
 type TilesMessage = Extract<
   HostToWebviewMessage,
   { type: 'mbtiles' | 'mbtilesError' | 'zoomRange' | 'zoomCount' | 'zoomCountsEnd' }
@@ -61,6 +64,9 @@ export class Shell {
   /** An MBTiles file's summary, kept while other pages are shown. */
   private tiles: TilesState | undefined;
   private summary: MbtilesView | undefined;
+  /** A database's tables as counted for its overview, kept while other pages are shown. */
+  private tables: TablesState | undefined;
+  private overview: DatabaseOverview | undefined;
   /** Objects' columns, indexes and foreign keys, by name, as the host sent them. */
   private details = new Map<string, DetailsMessage>();
   /** Where each table's grid was, so coming back to it, or reloading, returns there. */
@@ -116,6 +122,7 @@ export class Shell {
     const reloading = this.file !== undefined && this.tree !== undefined;
     this.file = { info, locale, strings };
     this.tiles = undefined;
+    this.tables = undefined;
     this.setFileName(info.fileName);
     this.sidebar.setAttribute('aria-label', strings.databaseObjects);
     this.tabs.setAttribute('aria-label', strings.pageTabs);
@@ -137,6 +144,7 @@ export class Shell {
     this.schemaError = undefined;
     this.objects = new Map(objects.map((object) => [objectKey(object), object]));
     this.details.clear();
+    this.tables = undefined;
     this.tree = new ObjectTree(objects, strings, (key) => {
       this.show(key);
       this.events.onSelect(key);
@@ -164,6 +172,7 @@ export class Shell {
     this.data?.dispose();
     this.data = undefined;
     this.summary = undefined;
+    this.overview = undefined;
     // A file that can't be shown starts afresh once it can be again.
     this.file = undefined;
     this.tree = undefined;
@@ -203,6 +212,18 @@ export class Shell {
   }
 
   /** The host's answers about an MBTiles file, kept and shown when its summary is. */
+  /** Tables' sizes for the overview, kept and shown as they arrive. */
+  tablesMessage(message: TablesMessage): void {
+    const tables = this.tables;
+    if (!tables) return;
+    if (message.type === 'tableSummary') {
+      tables.counts.set(message.name, message.summary);
+    } else {
+      tables.counting = false;
+    }
+    this.overview?.renderTables();
+  }
+
   tilesMessage(message: TilesMessage): void {
     const tiles = this.tiles;
     if (!tiles) return;
@@ -244,6 +265,7 @@ export class Shell {
     this.data?.dispose();
     this.data = undefined;
     this.summary = undefined;
+    this.overview = undefined;
     const { info, locale, strings } = this.file;
     const object = this.objects.get(key);
     const hasRows = object?.type === 'table' || object?.type === 'view';
@@ -297,6 +319,20 @@ export class Shell {
       }
       return;
     }
+    if (this.tree && !this.schemaError) {
+      this.tables ??= { counts: new Map(), counting: false };
+      this.overview = new DatabaseOverview(
+        info,
+        locale,
+        strings,
+        [...this.objects.values()],
+        this.tables,
+        (name) => this.reveal(name),
+      );
+      this.content.replaceChildren(this.overview.element);
+      this.countTables();
+      return;
+    }
     const parts: HTMLElement[] = [overviewView(info, locale, strings)];
     if (this.schemaError) {
       parts.push(
@@ -329,6 +365,19 @@ export class Shell {
   }
 
   /** Counts tiles by zoom level while the summary is shown, picking up where it stopped. */
+  /** Counts the tables not counted yet while the overview is shown; a table's count stops it. */
+  private countTables(): void {
+    const tables = this.tables;
+    if (!tables || !this.overview || tables.counting) return;
+    const names = listedTables([...this.objects.values()]).filter(
+      (name) => !tables.counts.has(name),
+    );
+    if (names.length === 0) return;
+    tables.counting = true;
+    this.overview.renderTables();
+    this.events.send({ type: 'tableSummaries', names });
+  }
+
   private countZooms(): void {
     const tiles = this.tiles;
     if (!tiles?.summary?.tiles || !this.summary || tiles.counting || countsComplete(tiles)) {

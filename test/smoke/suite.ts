@@ -147,6 +147,27 @@ const tests: Record<string, () => Promise<void>> = {
     }
   },
 
+  async 'counts every table for the overview in the background'() {
+    const document = new DatabaseDocument(
+      vscode.Uri.file(path.join(FIXTURES, 'sample.sqlite')),
+      WORKER,
+    );
+    try {
+      const sizes = new Map<string, unknown>();
+      await document.tableSummaries(['albums', 'events'], (name, summary) =>
+        sizes.set(name, summary),
+      );
+      assert.deepEqual(Object.fromEntries(sizes), {
+        albums: { rows: 5, columns: 8 },
+        events: { rows: 5000, columns: 4 },
+      });
+      // Opening a table counted there needs no second count.
+      assert.equal(await document.count('events'), 5000);
+    } finally {
+      document.dispose();
+    }
+  },
+
   async 'counts tiles by zoom level in the background, and stops for a table count'() {
     const document = new DatabaseDocument(
       vscode.Uri.file(path.join(FIXTURES, 'sample.mbtiles')),

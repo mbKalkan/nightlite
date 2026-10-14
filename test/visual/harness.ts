@@ -82,6 +82,13 @@ export async function openViewer(page: Page, theme: ThemeName) {
         cell: async (name, row, total, column, rowid) =>
           reader(name).cell(row, total, column, rowid),
         objectDetails: async (name) => readDetails(connection(), name),
+        tableSummaries: async (names, onSummary) => {
+          if (!database?.count) return new Promise<void>(() => {});
+          for (const name of names) {
+            const table = reader(name);
+            onSummary(name, { rows: table.count(), columns: table.info.columns.length });
+          }
+        },
         mbtiles: async () => readMbtiles(connection()),
         zoomCounts: async (skip, onRange, onCount) => {
           if (!database?.count) return new Promise<void>(() => {});

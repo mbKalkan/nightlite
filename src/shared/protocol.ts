@@ -223,6 +223,11 @@ export interface ViewerStrings {
   automaticIndex: string;
   partialIndex: string;
   detailsErrorTitle: string;
+  /** The overview of a database: its tables and their sizes. */
+  rowsColumn: string;
+  countingRows: string;
+  countRowsFailed: string;
+  moreTables: string;
   /** The MBTiles summary: its sections and what they say. */
   tilesHeading: string;
   zoomColumn: string;
@@ -381,6 +386,24 @@ export interface ObjectDetailsErrorMessage {
   detail: string;
 }
 
+/** A table's size, for the overview: its rows, counted, and its columns. */
+export interface TableSummary {
+  rows: number;
+  columns: number;
+}
+
+/** One table summarized in the background; null when it couldn't be counted. */
+export interface TableSummaryMessage {
+  type: 'tableSummary';
+  name: string;
+  summary: TableSummary | null;
+}
+
+export interface TableSummariesEndMessage {
+  type: 'tableSummariesEnd';
+  complete: boolean;
+}
+
 /** What an MBTiles file says about itself, answering `mbtiles`. */
 export interface MbtilesSummary {
   /** The metadata table's rows as text; null when there is no metadata table. */
@@ -450,7 +473,9 @@ export type HostToWebviewMessage =
   | ZoomCountMessage
   | ZoomCountsEndMessage
   | ObjectDetailsMessage
-  | ObjectDetailsErrorMessage;
+  | ObjectDetailsErrorMessage
+  | TableSummaryMessage
+  | TableSummariesEndMessage;
 
 export type WebviewToHostMessage =
   | { type: 'ready' }
@@ -465,6 +490,8 @@ export type WebviewToHostMessage =
   /** Asks for one cell's value, by its row's rowid when known, else by position. */
   /** Asks for an object's columns, indexes and foreign keys, for its Schema page. */
   | { type: 'objectDetails'; name: string }
+  /** Counts the rows of these tables in the background, for the overview. */
+  | { type: 'tableSummaries'; names: string[] }
   /** Asks for an MBTiles file's metadata. */
   | { type: 'mbtiles' }
   /** Starts counting tiles by zoom level, leaving out levels already counted. */

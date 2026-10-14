@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   once, and shows what kind of file it is, its size, pages, text encoding and journal mode.
   Files that aren't SQLite databases, or are encrypted or empty, are explained in plain words,
   with **Reopen With…** at hand for a `.db` file that belongs to another program.
+- A database opens on an overview: the file's facts, how many tables, views, indexes and triggers
+  it holds, and every table with its rows and columns, counted in the background and drawn to
+  scale. A table's name opens it.
 - A sidebar lists the database's tables, views, indexes and triggers, with how many of each.
   Pick one to see the statement that created it, with its traits (virtual, `WITHOUT ROWID`,
   `STRICT`, SQLite's own). Move through the list with the arrow keys or by typing a name, as in

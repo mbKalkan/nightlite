@@ -320,6 +320,99 @@ body.vscode-high-contrast .nl-schema-table td {
   border-top-color: var(--vscode-contrastBorder, transparent);
 }
 
+/* A database's overview: what it holds and how big its tables are */
+
+.nl-contents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin: 20px 0 0;
+  color: var(--vscode-descriptionForeground);
+}
+
+.nl-contents-count {
+  color: var(--vscode-foreground);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.nl-size-table {
+  display: grid;
+  grid-template-columns: minmax(0, max-content) max-content max-content minmax(80px, 1fr);
+  gap: 3px 20px;
+  align-items: center;
+  max-width: 760px;
+}
+
+.nl-size-row {
+  display: contents;
+}
+
+.nl-size-head span {
+  color: var(--vscode-descriptionForeground);
+  font-size: 12px;
+}
+
+.nl-size-head span:nth-child(2),
+.nl-size-head span:nth-child(3),
+.nl-size-count {
+  text-align: right;
+}
+
+.nl-size-count {
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-variant-numeric: tabular-nums;
+}
+
+.nl-pending .nl-size-count {
+  color: var(--vscode-descriptionForeground);
+}
+
+.nl-size-name {
+  display: flex;
+  min-width: 0;
+}
+
+.nl-size-bar {
+  height: 10px;
+}
+
+.nl-size-fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--vscode-focusBorder) 70%, transparent);
+}
+
+body.vscode-high-contrast .nl-size-fill {
+  background: var(--vscode-foreground);
+}
+
+/* A name that opens what it names, drawn as a link. */
+.nl-link {
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--vscode-textLink-foreground);
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.nl-link:hover {
+  color: var(--vscode-textLink-activeForeground);
+  text-decoration: underline;
+}
+
+.nl-link:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
 /* The MBTiles summary */
 
 .nl-mbtiles-head {
