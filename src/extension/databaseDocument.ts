@@ -9,8 +9,11 @@ import type {
   RowPage,
   SchemaObject,
   TableSummary,
+  TileContent,
+  TilePage,
   ZoomRange,
 } from '../shared/protocol';
+import type { TileKey } from '../shared/tiles';
 import { DatabaseClient, DatabaseFailure } from './database/client';
 import type { CopiedText } from './database/rows';
 import { connectionTarget } from './database/target';
@@ -127,6 +130,18 @@ export class DatabaseDocument implements vscode.CustomDocument, DatabaseBackend 
         if (!skip.includes(zoom)) onCount(zoom, await client.zoomCount(zoom));
       }
     });
+  }
+
+  async tilePage(zoom: number, start: number, count: number, total: number): Promise<TilePage> {
+    return (await this.open()).tilePage(zoom, start, count, total);
+  }
+
+  async locateTile(key: TileKey, total: number): Promise<number> {
+    return (await this.open()).locateTile(key, total);
+  }
+
+  async tile(key: TileKey): Promise<TileContent | null> {
+    return (await this.open()).tile(key);
   }
 
   /**

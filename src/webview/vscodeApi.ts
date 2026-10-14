@@ -1,4 +1,5 @@
 import type { WebviewToHostMessage } from '../shared/protocol';
+import type { RowScheme, TileKey } from '../shared/tiles';
 
 /** What the webview remembers across reloads and while its tab is in the background. */
 export interface ViewState {
@@ -10,6 +11,10 @@ export interface ViewState {
   detail?: boolean;
   /** Its width in pixels, once resized. */
   detailWidth?: number;
+  /** The tile browser's tile, row numbering and hidden layers. */
+  tile?: TileKey;
+  scheme?: RowScheme;
+  hiddenLayers?: string[];
 }
 
 interface VsCodeApi {

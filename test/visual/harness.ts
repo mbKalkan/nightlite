@@ -1,5 +1,5 @@
 import { readFileSync, statSync } from 'node:fs';
-import { extname, join } from 'node:path';
+import { extname, isAbsolute, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type { Page } from '@playwright/test';
 import { readDetails } from '../../src/extension/database/details';
@@ -7,6 +7,7 @@ import { readMbtiles, zoomCount, zoomRange } from '../../src/extension/database/
 import { TableReader } from '../../src/extension/database/rows';
 import { readSchema } from '../../src/extension/database/schema';
 import { READ_OPTIONS, connectionTarget } from '../../src/extension/database/target';
+import { TileLister, readTile } from '../../src/extension/database/tiles';
 import { answer } from '../../src/extension/requests';
 import { viewerStrings } from '../../src/extension/strings';
 import { buildWebviewHtml } from '../../src/extension/webviewHtml';
@@ -54,7 +55,14 @@ export interface HostOptions {
 export async function openViewer(page: Page, theme: ThemeName) {
   const problems: string[] = [];
   const clipboard: string[] = [];
-  let database: { db: DatabaseSync; readers: Map<string, TableReader>; count: boolean } | undefined;
+  let database:
+    | {
+        db: DatabaseSync;
+        readers: Map<string, TableReader>;
+        listers: Map<number, TileLister>;
+        count: boolean;
+      }
+    | undefined;
   const connection = () => {
     if (!database) throw new Error('No database loaded');
     return database.db;
@@ -68,8 +76,38 @@ export async function openViewer(page: Page, theme: ThemeName) {
     }
     return found;
   };
-  const post = (message: HostToWebviewMessage) =>
-    page.evaluate((data) => window.dispatchEvent(new MessageEvent('message', { data })), message);
+  const lister = (zoom: number) => {
+    if (!database) throw new Error('No database loaded');
+    let found = database.listers.get(zoom);
+    if (!found) {
+      found = new TileLister(database.db, zoom);
+      database.listers.set(zoom, found);
+    }
+    return found;
+  };
+  // Playwright passes JSON; a tile's bytes travel as base64 and become bytes again on the page.
+  const post = (message: HostToWebviewMessage) => {
+    const bytes =
+      message.type === 'tileContent' && message.content?.data
+        ? Buffer.from(message.content.data).toString('base64')
+        : null;
+    const data =
+      bytes !== null && message.type === 'tileContent' && message.content
+        ? { ...message, content: { ...message.content, data: null } }
+        : message;
+    return page.evaluate(
+      ([payload, base64]) => {
+        if (base64 !== null) {
+          (payload as { content: { data: Uint8Array } }).content.data = Uint8Array.from(
+            atob(base64),
+            (c) => c.charCodeAt(0),
+          );
+        }
+        window.dispatchEvent(new MessageEvent('message', { data: payload }));
+      },
+      [data, bytes] as const,
+    );
+  };
   hosts.set(page, (message: WebviewToHostMessage) =>
     answer(
       message,
@@ -98,6 +136,9 @@ export async function openViewer(page: Page, theme: ThemeName) {
             if (!skip.includes(zoom)) onCount(zoom, zoomCount(connection(), zoom));
           }
         },
+        tilePage: async (zoom, start, count, total) => lister(zoom).page(start, count, total),
+        locateTile: async (key, total) => lister(key.zoom).locate(key.column, key.row, total),
+        tile: async (key) => readTile(connection(), key.zoom, key.column, key.row),
       },
       post,
       async (text) => {
@@ -195,7 +236,8 @@ export async function openViewer(page: Page, theme: ThemeName) {
      * `count: false` leaves row counts running forever.
      */
     async load(fixture: string, { schema = true, count = true }: HostOptions = {}) {
-      const path = join('test/fixtures', fixture);
+      // Files outside the fixtures, like ones kept in test/fixtures/private, by their own path.
+      const path = isAbsolute(fixture) ? fixture : join('test/fixtures', fixture);
       const bytes = readFileSync(path).subarray(0, HEADER_SIZE);
       const result = describeFile(path, bytes, statSync(path).size);
       if ('error' in result) {
@@ -209,7 +251,7 @@ export async function openViewer(page: Page, theme: ThemeName) {
       if (!schema) return;
       database?.db.close();
       const db = new DatabaseSync(connectionTarget(path, result.file.header.wal), READ_OPTIONS);
-      database = { db, readers: new Map(), count };
+      database = { db, readers: new Map(), listers: new Map(), count };
       await this.post({ type: 'schema', objects: readSchema(db) });
       await page.waitForSelector('.nl-sidebar:not([hidden])');
     },

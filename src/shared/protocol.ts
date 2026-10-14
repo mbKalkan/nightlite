@@ -1,5 +1,7 @@
 // Messages exchanged between the extension host and the webview.
 
+import type { TileKey } from './tiles';
+
 /** What a SQLite file holds, as far as the viewer tells them apart. */
 export type FileFormat = 'sqlite' | 'mbtiles' | 'geopackage';
 
@@ -266,6 +268,48 @@ export interface ViewerStrings {
   noMetadata: string;
   fileHeading: string;
   mbtilesErrorTitle: string;
+  /** The tile browser: its toolbar, its list, and what it says about a tile. */
+  tileBrowser: string;
+  goToTile: string;
+  tileAddressHint: string;
+  invalidAddress: string;
+  rowScheme: string;
+  xyzHint: string;
+  tmsHint: string;
+  tilesAtZoomList: string;
+  zoomOption: string;
+  tileHeading: string;
+  tileNavigation: string;
+  moveWest: string;
+  moveEast: string;
+  moveNorth: string;
+  moveSouth: string;
+  zoomIn: string;
+  zoomOut: string;
+  noTileAt: string;
+  noTileHint: string;
+  emptyTile: string;
+  tileTooLarge: string;
+  tileDamaged: string;
+  tileUnknown: string;
+  tileUnreadable: string;
+  imageTile: string;
+  vectorTile: string;
+  imageSize: string;
+  compressedSize: string;
+  layerCount: string;
+  oneLayer: string;
+  oneFeature: string;
+  pointCount: string;
+  onePoint: string;
+  lineCount: string;
+  oneLine: string;
+  polygonCount: string;
+  onePolygon: string;
+  otherCount: string;
+  layerExtent: string;
+  tileLayersHeading: string;
+  tilesErrorTitle: string;
 }
 
 export interface LoadMessage {
@@ -447,6 +491,55 @@ export interface ZoomCountsEndMessage {
   complete: boolean;
 }
 
+/** One zoom level's tiles from position `start` on, by column and then row: [column, row]. */
+export interface TilePage {
+  start: number;
+  tiles: [number, number][];
+  /** True when the zoom level's tiles ended within this page. */
+  end: boolean;
+}
+
+/** A tile's bytes, uncompressed for the webview when stored compressed. */
+export interface TileContent {
+  /** The size as stored. */
+  size: number;
+  compression: 'gzip' | 'zlib' | null;
+  /** Null when the tile is too large to show, or its compressed bytes are damaged. */
+  data: Uint8Array | null;
+  problem?: 'tooLarge' | 'damaged';
+}
+
+/** Tiles answering `tiles`. */
+export interface TilePageMessage {
+  type: 'tilePage';
+  request: number;
+  zoom: number;
+  page: TilePage;
+}
+
+/** Where a tile is in its zoom level's list, or would be: answers `locateTile`. */
+export interface TilePositionMessage {
+  type: 'tilePosition';
+  request: number;
+  key: TileKey;
+  position: number;
+}
+
+/** A tile's content, answering `tile`; null when there's no tile at the place. */
+export interface TileContentMessage {
+  type: 'tileContent';
+  request: number;
+  key: TileKey;
+  content: TileContent | null;
+}
+
+export interface TilesErrorMessage {
+  type: 'tilesError';
+  request: number;
+  error: DatabaseError;
+  detail: string;
+}
+
 /** The selection is on the clipboard, answering `copy`. */
 export interface CopiedMessage {
   type: 'copied';
@@ -475,7 +568,11 @@ export type HostToWebviewMessage =
   | ObjectDetailsMessage
   | ObjectDetailsErrorMessage
   | TableSummaryMessage
-  | TableSummariesEndMessage;
+  | TableSummariesEndMessage
+  | TilePageMessage
+  | TilePositionMessage
+  | TileContentMessage
+  | TilesErrorMessage;
 
 export type WebviewToHostMessage =
   | { type: 'ready' }
@@ -487,7 +584,6 @@ export type WebviewToHostMessage =
   | { type: 'rows'; request: number; name: string; start: number; count: number; total: number }
   /** Copies full values as tab-separated text; the extension host writes the clipboard. */
   | { type: 'copy'; request: number; name: string; range: CopyRange }
-  /** Asks for one cell's value, by its row's rowid when known, else by position. */
   /** Asks for an object's columns, indexes and foreign keys, for its Schema page. */
   | { type: 'objectDetails'; name: string }
   /** Counts the rows of these tables in the background, for the overview. */
@@ -496,6 +592,13 @@ export type WebviewToHostMessage =
   | { type: 'mbtiles' }
   /** Starts counting tiles by zoom level, leaving out levels already counted. */
   | { type: 'zoomCounts'; skip: number[] }
+  /** Asks for `count` tiles of a zoom level from position `start`; `total` is its tile count. */
+  | { type: 'tiles'; request: number; zoom: number; start: number; count: number; total: number }
+  /** Asks where a tile is in its zoom level's list. */
+  | { type: 'locateTile'; request: number; key: TileKey; total: number }
+  /** Asks for a tile's content. */
+  | { type: 'tile'; request: number; key: TileKey }
+  /** Asks for one cell's value, by its row's rowid when known, else by position. */
   | {
       type: 'cell';
       request: number;
