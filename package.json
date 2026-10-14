@@ -138,6 +138,16 @@
         "command": "nightlite.goToTable",
         "title": "%command.goToTable%",
         "category": "%category%"
+      },
+      {
+        "command": "nightlite.copy",
+        "title": "%command.copy%",
+        "category": "%category%"
+      },
+      {
+        "command": "nightlite.copyAsMarkdown",
+        "title": "%command.copyAsMarkdown%",
+        "category": "%category%"
       }
     ],
     "menus": {
@@ -145,6 +155,26 @@
         {
           "command": "nightlite.goToTable",
           "when": "activeCustomEditorId == nightlite.viewer"
+        },
+        {
+          "command": "nightlite.copy",
+          "when": "false"
+        },
+        {
+          "command": "nightlite.copyAsMarkdown",
+          "when": "activeCustomEditorId == nightlite.viewer"
+        }
+      ],
+      "webview/context": [
+        {
+          "command": "nightlite.copy",
+          "when": "webviewId == 'nightlite.viewer' && webviewSection == 'grid'",
+          "group": "9_cutcopypaste@1"
+        },
+        {
+          "command": "nightlite.copyAsMarkdown",
+          "when": "webviewId == 'nightlite.viewer' && webviewSection == 'grid'",
+          "group": "9_cutcopypaste@2"
         }
       ]
     },

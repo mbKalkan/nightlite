@@ -71,6 +71,9 @@ window.addEventListener('message', (event: MessageEvent<HostToWebviewMessage>) =
     case 'reveal':
       shell.reveal(message.name);
       break;
+    case 'copySelection':
+      shell.copySelection(message.markdown);
+      break;
     case 'objectInfo':
     case 'rowCount':
     case 'rowPage':

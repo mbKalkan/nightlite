@@ -113,7 +113,7 @@ export class DataView {
             this.showSelection();
             this.updateDetail();
           },
-          onCopy: (range, toEnd) => this.copy(range, toEnd),
+          onCopy: (range, toEnd, markdown) => this.copy(range, toEnd, markdown),
           onEnter: () => this.setDetail(true, true),
         });
         this.detail = new CellDetail(
@@ -125,6 +125,7 @@ export class DataView {
               if (cell)
                 this.copy(
                   { row1: cell.row, col1: cell.col, row2: cell.row, col2: cell.col },
+                  false,
                   false,
                 );
             },
@@ -229,7 +230,12 @@ export class DataView {
     this.element.remove();
   }
 
-  private copy(range: CellRange, toEnd: boolean): void {
+  /** Copy or Copy as Markdown Table, from the context menu or the Command Palette. */
+  copySelection(markdown: boolean): void {
+    this.grid?.copySelection(markdown);
+  }
+
+  private copy(range: CellRange, toEnd: boolean, markdown: boolean): void {
     const request = nextRequest++;
     this.copies.add(request);
     clearTimeout(this.copyTimer);
@@ -247,6 +253,7 @@ export class DataView {
         total: this.grid?.rowCount.total ?? 0,
         firstColumn: range.col1,
         lastColumn: range.col2,
+        markdown,
       },
     });
   }

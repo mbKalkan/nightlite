@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { imageKind, looksLikeText, realText, tsvField } from '../../src/shared/values';
+import {
+  imageKind,
+  looksLikeText,
+  markdownCell,
+  markdownTable,
+  realText,
+  tsvField,
+} from '../../src/shared/values';
 
 describe('realText', () => {
   it('keeps whole reals looking like reals', () => {
@@ -46,5 +53,32 @@ describe('looksLikeText', () => {
     expect(looksLikeText(new Uint8Array([0xc3, 0x28]))).toBe(false);
     expect(looksLikeText(text('a\u0007b'))).toBe(false);
     expect(looksLikeText(new Uint8Array())).toBe(false);
+  });
+});
+
+describe('markdownTable', () => {
+  it('lines columns up, numbers to the right, and keeps pipes and line breaks in their cells', () => {
+    const rows = [
+      ['1', markdownCell('Ada')],
+      ['22', markdownCell('Grace | Hopper')],
+      ['333', markdownCell('two\r\nlines')],
+    ];
+    expect(markdownTable(['id', 'name'], rows, [true, false])).toBe(
+      [
+        '|  id | name            |',
+        '| --: | --------------- |',
+        '|   1 | Ada             |',
+        '|  22 | Grace \\| Hopper |',
+        '| 333 | two<br>lines    |',
+      ].join('\n'),
+    );
+  });
+
+  it('pads a column only so far, and not at all when that would make the table too big', () => {
+    const long = 'x'.repeat(60);
+    expect(markdownTable(['a', 'b'], [[long, 'y']], [false, false]).split('\n')[0]).toBe(
+      `| a${' '.repeat(39)} | b   |`,
+    );
+    expect(markdownTable(['a'], [['1']], [true], 10)).toBe('| a |\n| --: |\n| 1 |');
   });
 });

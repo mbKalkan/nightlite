@@ -41,6 +41,10 @@ export class ViewerProvider implements vscode.CustomEditorProvider<DatabaseDocum
         supportsMultipleEditorsPerDocument: true,
       }),
       vscode.commands.registerCommand('nightlite.goToTable', () => provider.goToObject()),
+      vscode.commands.registerCommand('nightlite.copy', () => provider.copySelection(false)),
+      vscode.commands.registerCommand('nightlite.copyAsMarkdown', () =>
+        provider.copySelection(true),
+      ),
       provider.edits,
     );
   }
@@ -225,6 +229,14 @@ export class ViewerProvider implements vscode.CustomEditorProvider<DatabaseDocum
     } catch (error) {
       await post({ type: 'schemaError', ...classifyDatabaseError(error) });
     }
+  }
+
+  /** Copies the selected cells of the grid in view, as the grid's own Ctrl+C does. */
+  private copySelection(markdown: boolean): void {
+    void this.active?.panel.webview.postMessage({
+      type: 'copySelection',
+      markdown,
+    } satisfies HostToWebviewMessage);
   }
 
   private async goToObject(): Promise<void> {

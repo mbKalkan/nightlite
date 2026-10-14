@@ -48,7 +48,7 @@ export interface GridEvents {
   onTotal(total: number, exact: boolean): void;
   onSelection(): void;
   /** `toEnd`: the selection runs to the last row, wherever the count turns out to end. */
-  onCopy(range: CellRange, toEnd: boolean): void;
+  onCopy(range: CellRange, toEnd: boolean, markdown: boolean): void;
   /** Enter or a double click on a cell: show it in full. */
   onEnter(): void;
 }
@@ -111,6 +111,11 @@ export class DataGrid {
     this.element.setAttribute('aria-multiselectable', 'true');
     this.element.setAttribute('aria-colcount', String(info.columns.length + 1));
     this.element.setAttribute('aria-label', strings.rowsOf.replace('{0}', info.name));
+    // The context menu offers Copy and Copy as Markdown Table here, in place of Cut, Copy, Paste.
+    this.element.dataset.vscodeContext = JSON.stringify({
+      webviewSection: 'grid',
+      preventDefaultContextMenuItems: true,
+    });
     this.element.innerHTML = `
       <div class="nl-grid-sizer">
         <div class="nl-grid-header" role="row" aria-rowindex="1"></div>
@@ -366,12 +371,18 @@ export class DataGrid {
   }
 
   private onMouseDown(event: MouseEvent): void {
-    if (event.button !== 0 || this.failed) return;
+    if ((event.button !== 0 && event.button !== 2) || this.failed) return;
     const hit = this.hit(event);
     if (!hit) return;
     // Keep the browser from selecting text, and take focus the way a click would have.
     event.preventDefault();
     this.element.focus({ preventScroll: true });
+    if (event.button === 2) {
+      // A right click selects what it's on, unless that's selected already: the context menu
+      // then copies the whole selection.
+      if (!this.inSelection(hit)) this.select(hit, false, false);
+      return;
+    }
     const lastRow = this.total - 1;
     const lastCol = this.info.columns.length - 1;
     const extend = event.shiftKey;
@@ -478,9 +489,22 @@ export class DataGrid {
     // Text selected elsewhere, like in a message, copies as usual.
     if (document.activeElement !== this.element || this.failed) return;
     event.preventDefault();
-    if (this.total === 0) return;
+    this.copySelection(false);
+  }
+
+  /** Copies the selection, as tab-separated text or as a Markdown table. */
+  copySelection(markdown: boolean): void {
+    if (this.total === 0 || this.failed) return;
     const range = this.selection;
-    this.events.onCopy(range, range.row2 >= this.total - 1 && !this.exact);
+    this.events.onCopy(range, range.row2 >= this.total - 1 && !this.exact, markdown);
+  }
+
+  private inSelection(hit: CellPosition & { header: boolean }): boolean {
+    const { row1, col1, row2, col2 } = this.selection;
+    return (
+      (hit.header || (hit.row >= row1 && hit.row <= row2)) &&
+      (hit.col < 0 || (hit.col >= col1 && hit.col <= col2))
+    );
   }
 
   private scrollTo(top: number): void {

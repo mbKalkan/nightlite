@@ -49,3 +49,53 @@ export function realText(value: number): string {
 export function tsvField(text: string): string {
   return /[\t\n\r"]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
+
+/** A value as a cell of a Markdown table, which can hold neither a pipe nor a line break. */
+export function markdownCell(text: string): string {
+  return text.replace(/\|/g, '\\|').replace(/\r\n|\r|\n/g, '<br>');
+}
+
+/** Columns are padded to line up as plain text, up to this many characters. */
+const MARKDOWN_PAD = 40;
+
+/**
+ * A Markdown table of cells made with `markdownCell`, headed by `names`; `right` aligns a
+ * column to the right, as numbers are. Columns line up unless that would take it over `limit`.
+ */
+export function markdownTable(
+  names: string[],
+  rows: string[][],
+  right: boolean[],
+  limit = Infinity,
+): string {
+  const header = names.map(markdownCell);
+  // Characters, not UTF-16 units, so that a column of emoji lines up too.
+  const length = (text: string) => [...text].length;
+  const widths = header.map((name) => Math.max(3, length(name)));
+  for (const row of rows) {
+    row.forEach((cell, c) => (widths[c] = Math.max(widths[c], length(cell))));
+  }
+  for (let c = 0; c < widths.length; c++) widths[c] = Math.min(widths[c], MARKDOWN_PAD);
+  let size = 0;
+  for (const row of [header, ...rows]) {
+    size += row.reduce((sum, cell, c) => sum + Math.max(widths[c], length(cell)) + 3, 2);
+  }
+  const pad = size <= limit;
+  const line = (cells: string[]) =>
+    `| ${cells
+      .map((cell, c) => {
+        if (!pad) return cell;
+        const gap = ' '.repeat(Math.max(0, widths[c] - length(cell)));
+        return right[c] ? gap + cell : cell + gap;
+      })
+      .join(' | ')} |`;
+  const rule = widths.map((width, c) => {
+    const dashes = '-'.repeat(pad ? width : 3);
+    return right[c] ? `${dashes.slice(1)}:` : dashes;
+  });
+  return [
+    line(header),
+    `|${rule.map((dashes) => ` ${dashes} `).join('|')}|`,
+    ...rows.map(line),
+  ].join('\n');
+}

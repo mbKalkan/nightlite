@@ -221,6 +221,11 @@ export class Shell {
     }
   }
 
+  /** Copy or Copy as Markdown Table: the grid's selection, when a grid is in view. */
+  copySelection(markdown: boolean): void {
+    this.data?.copySelection(markdown);
+  }
+
   /** An object's columns, indexes and foreign keys, for its Schema page. */
   detailsMessage(message: DetailsMessage): void {
     this.details.set(message.name, message);
