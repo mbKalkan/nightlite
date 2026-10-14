@@ -315,6 +315,7 @@ export interface ViewerStrings {
   inspectHint: string;
   featureId: string;
   noAttributes: string;
+  saveTile: string;
 }
 
 export interface LoadMessage {
@@ -603,6 +604,8 @@ export type WebviewToHostMessage =
   | { type: 'locateTile'; request: number; key: TileKey; total: number }
   /** Asks for a tile's content. */
   | { type: 'tile'; request: number; key: TileKey }
+  /** Saves a tile as stored to a file the user picks; `name` is the file name, less its extension. */
+  | { type: 'saveTile'; request: number; key: TileKey; name: string }
   /** Asks for one cell's value, by its row's rowid when known, else by position. */
   | {
       type: 'cell';

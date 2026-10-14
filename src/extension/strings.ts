@@ -187,5 +187,6 @@ export function viewerStrings(l10n: Localizer): ViewerStrings {
     ),
     featureId: l10n.t('id {0}'),
     noAttributes: l10n.t('No attributes'),
+    saveTile: l10n.t('Save Tile…'),
   };
 }

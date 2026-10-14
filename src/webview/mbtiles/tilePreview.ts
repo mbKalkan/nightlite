@@ -48,6 +48,8 @@ const HEAD_BYTES = 256;
 
 export interface TilePreviewEvents {
   onStep(step: TileStep): void;
+  /** The user asked to save the tile shown to a file. */
+  onSave(): void;
   /** The user showed or hid a layer; layers are known by name from tile to tile. */
   onLayers(hidden: ReadonlySet<string>): void;
 }
@@ -57,6 +59,7 @@ export class TilePreview {
   readonly element: HTMLElement;
   private readonly address: HTMLElement;
   private readonly buttons = new Map<TileStep, HTMLButtonElement>();
+  private readonly saveButton: HTMLButtonElement;
   private readonly facts: HTMLElement;
   private readonly body: HTMLElement;
   private key: TileKey | undefined;
@@ -91,6 +94,14 @@ export class TilePreview {
       nav.append(button);
       if (step === 'in') nav.append(element('span', 'nl-tile-nav-gap'));
     }
+    this.saveButton = element('button', 'nl-icon-button') as HTMLButtonElement;
+    this.saveButton.type = 'button';
+    this.saveButton.innerHTML = icons.save;
+    this.saveButton.title = strings.saveTile;
+    this.saveButton.setAttribute('aria-label', strings.saveTile);
+    this.saveButton.disabled = true;
+    this.saveButton.addEventListener('click', () => this.events.onSave());
+    nav.append(element('span', 'nl-tile-nav-gap'), this.saveButton);
     head.append(this.address, nav);
     this.facts = element('p', 'nl-tile-facts');
     this.body = element('div', 'nl-tile-body');
@@ -101,6 +112,7 @@ export class TilePreview {
   /** Shows a tile's place at once and its content when it comes, after a moment's wait. */
   loading(key: TileKey): void {
     this.setKey(key);
+    this.saveButton.disabled = true;
     clearTimeout(this.loadingTimer);
     this.loadingTimer = window.setTimeout(() => {
       this.clear();
@@ -114,6 +126,7 @@ export class TilePreview {
     this.setKey(key);
     this.clear();
     const { strings } = this;
+    this.saveButton.disabled = content === null;
     if (!content) {
       this.facts.textContent = '';
       const note = element('div', 'nl-tile-message');
@@ -150,6 +163,7 @@ export class TilePreview {
 
   fail(title: string, detail: string): void {
     clearTimeout(this.loadingTimer);
+    this.saveButton.disabled = true;
     this.clear();
     this.facts.textContent = '';
     const note = element('div', 'nl-tile-message');

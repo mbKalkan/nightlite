@@ -15,6 +15,7 @@ import type {
 import type { TileKey } from '../shared/tiles';
 import type { CopiedText } from './database/rows';
 import { classifyDatabaseError } from './databaseErrors';
+import { tileExtension } from './tileFile';
 
 /** What answering the webview's questions about tables and views needs from a database. */
 export interface DatabaseBackend {
@@ -40,19 +41,25 @@ export interface DatabaseBackend {
   tilePage(zoom: number, start: number, count: number, total: number): Promise<TilePage>;
   locateTile(key: TileKey, total: number): Promise<number>;
   tile(key: TileKey): Promise<TileContent | null>;
+  /** A tile's bytes as stored, for saving. */
+  storedTile(key: TileKey): Promise<Uint8Array | null>;
 }
 
 type Post = (message: HostToWebviewMessage) => Thenable<boolean> | Promise<unknown>;
 
-/** Writes the system clipboard, which only the extension host can do while the webview waits. */
-export type WriteClipboard = (text: string) => Thenable<void> | Promise<void>;
+/** What only the extension host can do for the webview: the clipboard, files the user picks. */
+export interface HostServices {
+  writeClipboard(text: string): Thenable<void> | Promise<void>;
+  /** Asks where to save a tile, offering `name`, and writes it there. */
+  saveTile(name: string, stored: Uint8Array): Thenable<void> | Promise<void>;
+}
 
 /** Answers questions about the database's contents; other messages are left to the caller. */
 export async function answer(
   message: WebviewToHostMessage,
   backend: DatabaseBackend,
   post: Post,
-  writeClipboard: WriteClipboard,
+  host: HostServices,
 ): Promise<void> {
   switch (message.type) {
     case 'openObject': {
@@ -149,6 +156,21 @@ export async function answer(
         });
       }
       return;
+    case 'saveTile': {
+      let stored: Uint8Array | null;
+      try {
+        stored = await backend.storedTile(message.key);
+      } catch (error) {
+        await post({
+          type: 'tilesError',
+          request: message.request,
+          ...classifyDatabaseError(error),
+        });
+        return;
+      }
+      if (stored) await host.saveTile(`${message.name}.${tileExtension(stored)}`, stored);
+      return;
+    }
     case 'cell':
       try {
         const cell = await backend.cell(
@@ -171,7 +193,7 @@ export async function answer(
     case 'copy':
       try {
         const { text, ...result } = await backend.copy(message.name, message.range);
-        await writeClipboard(text);
+        await host.writeClipboard(text);
         await post({ type: 'copied', request: message.request, name: message.name, result });
       } catch (error) {
         await post({

@@ -126,6 +126,7 @@ export class TileBrowser {
     this.listPlace = element('div', 'nl-tile-list-place');
     this.preview = new TilePreview(strings, locale, view.scheme, view.hidden, {
       onStep: (step) => this.step(step),
+      onSave: () => this.save(),
       onLayers: () => this.events.onView(this.view),
     });
     this.main.append(this.listPlace, this.preview.element);
@@ -378,6 +379,18 @@ export class TileBrowser {
       };
     }
     this.show(key, true);
+  }
+
+  /** Saves the tile shown, named by its address as shown, like 14-8723-5412.pbf. */
+  private save(): void {
+    const tile = this.view.tile;
+    if (!tile) return;
+    this.events.send({
+      type: 'saveTile',
+      request: this.request(),
+      key: tile,
+      name: tileAddress(tile, this.view.scheme).replace(/\//g, '-'),
+    });
   }
 
   private step(step: TileStep): void {

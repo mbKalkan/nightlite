@@ -282,3 +282,20 @@ export function readTile(
     return { size, compression: kind, data: null, problem: tooLarge ? 'tooLarge' : 'damaged' };
   }
 }
+
+/** A tile's bytes as stored, for saving; null when there's no tile at the place. */
+export function readStoredTile(
+  db: DatabaseSync,
+  zoom: number,
+  column: number,
+  row: number,
+): Uint8Array | null {
+  const found = db
+    .prepare(
+      'SELECT typeof(tile_data) AS t, tile_data AS d FROM main.tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ? LIMIT 1',
+    )
+    .get(zoom, column, row) as { t: string; d: unknown } | undefined;
+  if (!found) return null;
+  if (found.t === 'blob') return new Uint8Array((found.d as Uint8Array | null) ?? []);
+  return new TextEncoder().encode(found.t === 'null' ? '' : String(found.d));
+}

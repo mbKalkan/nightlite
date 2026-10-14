@@ -339,3 +339,37 @@ test('leaves hidden layers out of what is under the pointer', async ({ page }) =
   await expect(featureCards(page).locator('.nl-tile-layer-name')).toHaveText(['water']);
   expect(viewer.problems).toEqual([]);
 });
+
+test('saves the tile shown, named by its address', async ({ page }) => {
+  const viewer = await openTiles(page, 'sample.mbtiles');
+  const save = page.getByRole('button', { name: 'Save Tile…' });
+  await expect(address(page)).toHaveText('1/1/1');
+  await save.click();
+  await expect.poll(() => viewer.saved.length).toBe(1);
+  expect(viewer.saved[0].name).toBe('1-1-1.pbf');
+  // Uncompressed: a vector tile's first field is its first layer.
+  expect(viewer.saved[0].bytes[0]).toBe(0x1a);
+
+  await page.getByRole('radio', { name: 'TMS' }).click();
+  await save.click();
+  await expect.poll(() => viewer.saved.length).toBe(2);
+  expect(viewer.saved[1].name).toBe('1-1-0.pbf');
+
+  // Nothing to save where there's no tile.
+  const box = page.locator('.nl-address');
+  await box.fill('5/0/0');
+  await box.press('Enter');
+  await expect(page.locator('.nl-tile-view .nl-tile-message')).toBeVisible();
+  await expect(save).toBeDisabled();
+  expect(viewer.problems).toEqual([]);
+});
+
+test('saves raster tiles as the images they are', async ({ page }) => {
+  const viewer = await openTiles(page, 'raster.mbtiles');
+  await expect(address(page)).toHaveText('0/0/0');
+  await page.getByRole('button', { name: 'Save Tile…' }).click();
+  await expect.poll(() => viewer.saved.length).toBe(1);
+  expect(viewer.saved[0].name).toBe('0-0-0.png');
+  expect([...viewer.saved[0].bytes.subarray(0, 4)]).toEqual([0x89, 0x50, 0x4e, 0x47]);
+  expect(viewer.problems).toEqual([]);
+});

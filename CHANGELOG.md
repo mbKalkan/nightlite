@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to the last digit; every feature under the pointer is listed, topmost first. A click keeps
   them in view, <kbd>[</kbd> and <kbd>]</kbd> step through the tile's features, and
   <kbd>Escape</kbd> lets go.
+- **Save Tile…** writes the tile shown to a file you pick, named by its address, like
+  `14-8723-5412.pbf`: images as they are, vector tiles uncompressed, or gzip-compressed when the
+  name ends in `.gz`. Nothing is written to the tileset.
 
 ## [0.1.0] - 2026-10-14
 
