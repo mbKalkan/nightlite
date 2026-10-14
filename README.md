@@ -2,8 +2,10 @@
 
 # Nightlite
 
-[![Visual Studio Marketplace](https://img.shields.io/visual-studio-marketplace/v/MBKDevStudio.nightlite?label=Marketplace)](https://marketplace.visualstudio.com/items?itemName=MBKDevStudio.nightlite)
+[![Visual Studio Marketplace](https://vsmarketplacebadges.dev/version-short/MBKDevStudio.nightlite.svg?label=Marketplace&color=007ec6)](https://marketplace.visualstudio.com/items?itemName=MBKDevStudio.nightlite)
+[![Visual Studio Marketplace installs](https://vsmarketplacebadges.dev/installs-short/MBKDevStudio.nightlite.svg?label=Marketplace%20installs&color=4c1)](https://marketplace.visualstudio.com/items?itemName=MBKDevStudio.nightlite)
 [![Open VSX](https://img.shields.io/open-vsx/v/MBKDevStudio/nightlite?label=Open%20VSX)](https://open-vsx.org/extension/MBKDevStudio/nightlite)
+[![Open VSX downloads](https://img.shields.io/open-vsx/dt/MBKDevStudio/nightlite?label=Open%20VSX%20downloads&color=4c1)](https://open-vsx.org/extension/MBKDevStudio/nightlite)
 [![CI](https://github.com/mbKalkan/nightlite/actions/workflows/ci.yml/badge.svg)](https://github.com/mbKalkan/nightlite/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -15,7 +17,7 @@ Nightlite is a fast, dark-first viewer for SQLite files: app databases (`.sqlite
 the rows on screen, so a table of ten million rows scrolls as smoothly as one of ten, and a 24 GB
 tileset opens at once.
 
-![A table of ten million rows in Nightlite, scrolled halfway down, with a cell selected and its value in the status bar](docs/images/rows-dark.png)
+![Nightlite jumping to the last of ten million rows, sorting and searching a table, running a query, pointing at a building in a vector tile, and drawing a GeoPackage polygon](docs/images/demo.gif)
 
 ## Why Nightlite
 
@@ -34,6 +36,8 @@ tileset opens at once.
 ## Features
 
 ### Databases
+
+![A table of ten million rows in Nightlite, scrolled halfway down, with a cell selected and its value in the status bar](docs/images/rows-dark.png)
 
 ![A JSON value from a table shown indented and colored in Nightlite's cell details panel](docs/images/cell-details-dark.png)
 

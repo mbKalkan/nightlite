@@ -66,6 +66,8 @@ Other useful scripts:
   projects into `test/corpus`; `npm test` then reads all of them too. Keep such files out of the
   repository.
 - `npm run screenshots` regenerates the images in `docs/images`.
+- `npm run demo` records the README's animated demo, `docs/images/demo.gif` (needs
+  [ffmpeg](https://ffmpeg.org/), `npx playwright install ffmpeg` and `npm run fixtures:large`).
 - `npm run icon` renders `assets/icon.png` from `assets/icon.svg`.
 
 If you change the UI, look at the screenshots the browser tests save in `test-results/screens`,

@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2026-10-14
 
 Query, sort, filter and export rows; browse and inspect MBTiles tiles and edit their metadata;
-see a GeoPackage's contents and geometries. Out of preview.
+see a GeoPackage's contents and geometries. Out of preview, with an animated demo and install
+counts at the top of the README.
 
 ### Added
 
