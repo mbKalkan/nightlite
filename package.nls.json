@@ -1,6 +1,6 @@
 {
   "displayName": "Nightlite — SQLite Viewer for Databases, MBTiles & GeoPackage",
-  "description": "View SQLite databases, MBTiles and GeoPackage files (.sqlite, .db, .mbtiles, .gpkg) in dark mode, even when they are tens of gigabytes. Fast, private and read-only.",
+  "description": "View SQLite databases, MBTiles and GeoPackage files (.sqlite, .db, .mbtiles, .gpkg) in dark mode, even when they are tens of gigabytes. Query, sort, filter and export rows. Fast, private and read-only by default.",
   "customEditor.displayName": "Nightlite",
   "virtualWorkspaces.description": "Nightlite reads databases with SQLite, which needs a file on a local or remote disk.",
   "category": "Nightlite",

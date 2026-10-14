@@ -6,16 +6,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-14
+
+Query, sort, filter and export rows; browse and inspect MBTiles tiles and edit their metadata;
+see a GeoPackage's contents and geometries. Out of preview, with an animated demo and install
+counts at the top of the README.
+
 ### Added
 
-- **Metadata** for MBTiles, in the sidebar under the tile browser: the tileset's metadata as a
-  form. Change, add or remove keys; values are checked against the MBTiles 1.3 spec as you type,
-  and minzoom and maxzoom against the tiles, without stopping a save. Changes are marked and the
-  editor tab shows them unsaved; **Save** (<kbd>Ctrl</kbd>+<kbd>S</kbd>) writes them into the
-  file in one transaction, **Undo** takes back a field's typing at once, **Revert** drops them,
-  and VS Code keeps them if it closes before you save. If another program changed the file
-  since, Nightlite asks first; if the file is locked or read-only, it says so and keeps your
-  changes. This is the only time Nightlite writes to a file.
+- **SQL Query**, in the sidebar and as **Open SQL Query** in the Command Palette: run a statement
+  that reads (`SELECT`, `WITH … SELECT`, `VALUES`, `EXPLAIN`, or a `PRAGMA` that reports, like
+  `table_info`) with <kbd>Ctrl</kbd>+<kbd>Enter</kbd>, and its rows show in the same grid tables
+  do, with copying and cell details. Statements that would write are turned down before they
+  run, and queries run on a read-only connection of their own, so the file is never changed.
+  **Stop** (<kbd>Escape</kbd>) keeps the rows read so far; results hold up to 100,000 rows.
+- Sort a table or view by a column, ascending or descending, from the column's header or the
+  grid's context menu (**Sort Ascending**, **Sort Descending**, **Clear Sort**).
+- **Search rows** above the grid (<kbd>Ctrl</kbd>+<kbd>F</kbd>) shows the rows with some text in
+  any column, and **Filter by Column** adds a filter under each column's name: text to find, or
+  `=`, `<>`, `<`, `<=`, `>`, `>=` and a value, or `=NULL` and `<>NULL`. Sorting and filtering
+  run in the background with their progress shown, and **Stop** (<kbd>Escape</kbd>) keeps the
+  rows found so far; the sorted or filtered rows then scroll, copy and jump like the table's
+  own. Each table keeps its sort, search and filters.
+- **Export Rows…**, in the toolbar, the grid's context menu and the Command Palette, writes the
+  rows on screen to a CSV or JSON file you pick: a table's rows as shown, sorted and filtered,
+  or every row a query returns, not only those the grid holds. Values are whole, integers to the
+  last digit and BLOBs as hex; the file is written as the rows are read, with progress and
+  **Cancel**, so memory stays flat even for millions of rows.
+- **Copy as Markdown Table**, in the grid's context menu and the Command Palette: the selected
+  cells as a Markdown table headed by their column names, columns lined up and numbers aligned
+  to the right, ready to paste into a README, an issue or a chat. A right click selects the cell
+  it's on, unless it's on the selection.
+- Cell details show a BLOB that holds an image (PNG, JPEG, WebP, GIF) as the picture, with its
+  size in pixels, and one that holds text as the text, JSON indented and colored. **Hex** shows
+  the bytes instead, and stays picked for the next BLOBs until you switch back.
 - A tile browser for MBTiles, in the sidebar under the overview. Pick a zoom level, type a
   tile's z/x/y, paste a tile URL, or pick a tile from the zoom level's list, which scrolls
   through millions of tiles. The arrow keys move to the neighboring tiles and <kbd>+</kbd> and
@@ -31,9 +55,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Save Tile…** writes the tile shown to a file you pick, named by its address, like
   `14-8723-5412.pbf`: images as they are, vector tiles uncompressed, or gzip-compressed when the
   name ends in `.gz`. Nothing is written to the tileset.
-- Cell details show a BLOB that holds an image (PNG, JPEG, WebP, GIF) as the picture, with its
-  size in pixels, and one that holds text as the text, JSON indented and colored. **Hex** shows
-  the bytes instead, and stays picked for the next BLOBs until you switch back.
+- **Metadata** for MBTiles, in the sidebar under the tile browser: the tileset's metadata as a
+  form. Change, add or remove keys; values are checked against the MBTiles 1.3 spec as you type,
+  and minzoom and maxzoom against the tiles, without stopping a save. Changes are marked and the
+  editor tab shows them unsaved; **Save** (<kbd>Ctrl</kbd>+<kbd>S</kbd>) writes them into the
+  file in one transaction, **Undo** takes back a field's typing at once, **Revert** drops them,
+  and VS Code keeps them if it closes before you save. If another program changed the file
+  since, Nightlite asks first; if the file is locked or read-only, it says so and keeps your
+  changes. This is the only time Nightlite writes to a file.
 - A GeoPackage's overview lists its contents: each feature, tile and attribute table with its
   geometry type and column or zoom levels, its spatial reference system (like `EPSG:4326`),
   rows and bounds, then the extensions it uses, and its GeoPackage version.
@@ -41,29 +70,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   details draw them, with their SRS and number of points, or show them as WKT. Points, lines,
   polygons with their holes, multi-geometries, collections and curves are read, in either byte
   order, from GeoPackage's binary format.
-- **Export Rows…**, in the toolbar, the grid's context menu and the Command Palette, writes the
-  rows on screen to a CSV or JSON file you pick: a table's rows as shown, sorted and filtered,
-  or every row a query returns, not only those the grid holds. Values are whole, integers to the
-  last digit and BLOBs as hex; the file is written as the rows are read, with progress and
-  **Cancel**, so memory stays flat even for millions of rows.
-- Sort a table or view by a column, ascending or descending, from the column's header or the
-  grid's context menu (**Sort Ascending**, **Sort Descending**, **Clear Sort**).
-- **Search rows** above the grid (<kbd>Ctrl</kbd>+<kbd>F</kbd>) shows the rows with some text in
-  any column, and **Filter by Column** adds a filter under each column's name: text to find, or
-  `=`, `<>`, `<`, `<=`, `>`, `>=` and a value, or `=NULL` and `<>NULL`. Sorting and filtering
-  run in the background with their progress shown, and **Stop** (<kbd>Escape</kbd>) keeps the
-  rows found so far; the sorted or filtered rows then scroll, copy and jump like the table's
-  own. Each table keeps its sort, search and filters.
-- **SQL Query**, in the sidebar and as **Open SQL Query** in the Command Palette: run a statement
-  that reads (`SELECT`, `WITH … SELECT`, `VALUES`, `EXPLAIN`, or a `PRAGMA` that reports, like
-  `table_info`) with <kbd>Ctrl</kbd>+<kbd>Enter</kbd>, and its rows show in the same grid tables
-  do, with copying and cell details. Statements that would write are turned down before they
-  run, and queries run on a read-only connection of their own, so the file is never changed.
-  **Stop** (<kbd>Escape</kbd>) keeps the rows read so far; results hold up to 100,000 rows.
-- **Copy as Markdown Table**, in the grid's context menu and the Command Palette: the selected
-  cells as a Markdown table headed by their column names, columns lined up and numbers aligned
-  to the right, ready to paste into a README, an issue or a chat. A right click selects the cell
-  it's on, unless it's on the selection.
 
 ## [0.1.0] - 2026-10-14
 
@@ -128,5 +134,6 @@ First preview release: SQLite databases, MBTiles and GeoPackages, read-only, at 
 - Dark, light and high contrast themes, keyboard and screen reader support, and English and
   Turkish.
 
-[Unreleased]: https://github.com/mbKalkan/nightlite/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/mbKalkan/nightlite/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/mbKalkan/nightlite/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/mbKalkan/nightlite/releases/tag/v0.1.0

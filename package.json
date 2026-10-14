@@ -3,7 +3,7 @@
   "displayName": "%displayName%",
   "description": "%description%",
   "icon": "assets/icon.png",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "publisher": "MBKDevStudio",
   "license": "MIT",
   "private": true,
@@ -49,9 +49,11 @@
     "read-only",
     "large files",
     "dark mode",
-    "dark theme"
+    "dark theme",
+    "query",
+    "csv",
+    "export"
   ],
-  "preview": true,
   "pricing": "Free",
   "galleryBanner": {
     "color": "#16212b",
@@ -276,6 +278,7 @@
     "fixtures:large": "node scripts/gen-fixtures.mjs --large",
     "corpus": "node scripts/fetch-corpus.mjs",
     "screenshots": "node scripts/build.mjs && node scripts/screenshots.mjs",
+    "demo": "node scripts/build.mjs && node scripts/demo.mjs",
     "icon": "node scripts/render-icon.mjs",
     "package": "vsce package --no-dependencies",
     "vscode:prepublish": "node scripts/build.mjs --production"
