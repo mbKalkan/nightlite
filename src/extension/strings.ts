@@ -188,5 +188,23 @@ export function viewerStrings(l10n: Localizer): ViewerStrings {
     featureId: l10n.t('id {0}'),
     noAttributes: l10n.t('No attributes'),
     saveTile: l10n.t('Save Tile…'),
+    metadataHint: l10n.t(
+      'Changes go into the tileset when you save it (Ctrl+S), and Undo (Ctrl+Z) takes them back. Nothing is written before.',
+    ),
+    metadataNoTable: l10n.t("This tileset has no metadata table, so there's nothing to edit."),
+    metadataIsView: l10n.t("The metadata here is a view over other tables, so it can't be edited."),
+    newKey: l10n.t('New key'),
+    addKey: l10n.t('Add Key'),
+    removeKey: l10n.t('Remove {0}'),
+    changedKey: l10n.t('Changed, not saved yet'),
+    keyCopies: l10n.t('The file has this key {0} times; saving a change keeps one.'),
+    valueTooLong: l10n.t('Too long to edit here: {0} characters.'),
+    issueFormat: l10n.t('Use pbf, png, jpg or webp.'),
+    issueBounds: l10n.t('Four numbers in degrees: west, south, east, north.'),
+    issueCenter: l10n.t('Longitude, latitude and a zoom level, like 28.98,41.01,12.'),
+    issueZoom: l10n.t('A whole number from 0 to 30.'),
+    issueType: l10n.t('Use overlay or baselayer.'),
+    issueJson: l10n.t('Not a JSON object.'),
+    zoomOrder: l10n.t('minzoom is above maxzoom.'),
   };
 }

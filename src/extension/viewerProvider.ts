@@ -4,6 +4,7 @@ import { describeFile } from '../shared/sqliteHeader';
 import { DatabaseDocument } from './databaseDocument';
 import { classifyDatabaseError } from './databaseErrors';
 import { readFileHeader } from './fileHeader';
+import { saveErrorMessage } from './saveErrors';
 import { watchDatabase } from './fileWatcher';
 import { pickObject } from './objectPicker';
 import { answer } from './requests';
@@ -16,10 +17,19 @@ interface Editor {
   document: DatabaseDocument;
 }
 
-export class ViewerProvider implements vscode.CustomReadonlyEditorProvider<DatabaseDocument> {
+/**
+ * Shows SQLite files of every kind. The provider is an editable one because an MBTiles file's
+ * metadata can be edited and saved (D-005); nothing else is ever changed, so other files never
+ * become dirty.
+ */
+export class ViewerProvider implements vscode.CustomEditorProvider<DatabaseDocument> {
   static readonly viewType = 'nightlite.viewer';
 
   private active: Editor | undefined;
+  private readonly edits = new vscode.EventEmitter<
+    vscode.CustomDocumentEditEvent<DatabaseDocument>
+  >();
+  readonly onDidChangeCustomDocument = this.edits.event;
 
   constructor(private readonly extensionUri: vscode.Uri) {}
 
@@ -31,16 +41,86 @@ export class ViewerProvider implements vscode.CustomReadonlyEditorProvider<Datab
         supportsMultipleEditorsPerDocument: true,
       }),
       vscode.commands.registerCommand('nightlite.goToTable', () => provider.goToObject()),
+      provider.edits,
     );
   }
 
-  openCustomDocument(uri: vscode.Uri): DatabaseDocument {
+  async openCustomDocument(
+    uri: vscode.Uri,
+    context: vscode.CustomDocumentOpenContext,
+  ): Promise<DatabaseDocument> {
     const worker = vscode.Uri.joinPath(this.extensionUri, 'dist', 'databaseWorker.js');
     const document = new DatabaseDocument(uri, worker.fsPath);
+    if (context.backupId) {
+      // Metadata changes kept when VS Code closed with them unsaved.
+      try {
+        const backup = await vscode.workspace.fs.readFile(vscode.Uri.parse(context.backupId));
+        document.metadata.restore(new TextDecoder().decode(backup));
+      } catch {
+        // A backup that can't be read is left out; the file itself is as it was.
+      }
+    }
     if (uri.scheme === 'file') {
-      document.own(watchDatabase(uri, () => document.reset()));
+      // Our own save changes the file too; that needs no reload.
+      document.own(
+        watchDatabase(uri, () => {
+          void document.isOwnWrite().then((own) => {
+            if (!own) document.reset();
+          });
+        }),
+      );
     }
     return document;
+  }
+
+  async saveCustomDocument(document: DatabaseDocument): Promise<void> {
+    if (await document.changedSinceRead()) {
+      const save = vscode.l10n.t('Save');
+      const name = document.uri.path.slice(document.uri.path.lastIndexOf('/') + 1);
+      const choice = await vscode.window.showWarningMessage(
+        vscode.l10n.t(
+          '{0} changed on disk since Nightlite read it. Save the metadata changes into it anyway?',
+          name,
+        ),
+        { modal: true },
+        save,
+      );
+      if (choice !== save) throw new vscode.CancellationError();
+    }
+    try {
+      await document.saveMetadata();
+    } catch (error) {
+      // VS Code shows the message and keeps the changes, still unsaved.
+      throw new Error(saveErrorMessage(error), { cause: error });
+    }
+  }
+
+  saveCustomDocumentAs(): Promise<void> {
+    return Promise.reject(
+      new Error(
+        vscode.l10n.t(
+          "Save As isn't available here: saving writes the metadata into the tileset itself.",
+        ),
+      ),
+    );
+  }
+
+  async revertCustomDocument(document: DatabaseDocument): Promise<void> {
+    document.revertMetadata();
+  }
+
+  async backupCustomDocument(
+    document: DatabaseDocument,
+    context: vscode.CustomDocumentBackupContext,
+  ): Promise<vscode.CustomDocumentBackup> {
+    await vscode.workspace.fs.writeFile(
+      context.destination,
+      new TextEncoder().encode(document.metadata.backup()),
+    );
+    return {
+      id: context.destination.toString(),
+      delete: () => void vscode.workspace.fs.delete(context.destination).then(undefined, () => {}),
+    };
   }
 
   resolveCustomEditor(document: DatabaseDocument, panel: vscode.WebviewPanel): void {
@@ -69,10 +149,18 @@ export class ViewerProvider implements vscode.CustomReadonlyEditorProvider<Datab
           void answer(message, document, current, {
             writeClipboard: (text) => vscode.env.clipboard.writeText(text),
             saveTile: (name, stored) => saveTile(document.uri, name, stored),
+            onMetadataEdit: (edit) =>
+              this.edits.fire({
+                document,
+                label: vscode.l10n.t('Edit Metadata'),
+                undo: () => edit.undo(),
+                redo: () => edit.redo(),
+              }),
           });
         }
       }),
       document.onReset(() => void this.load(document, post)),
+      document.onMetadata((saved) => void this.postMetadata(document, post, saved)),
       panel.onDidChangeViewState(() => this.track(editor)),
     ];
     this.track(editor);
@@ -82,6 +170,20 @@ export class ViewerProvider implements vscode.CustomReadonlyEditorProvider<Datab
         this.active = undefined;
       }
     });
+  }
+
+  /** The metadata as edited now; after a save, the tileset's summary read afresh too. */
+  private async postMetadata(
+    document: DatabaseDocument,
+    post: (message: HostToWebviewMessage) => Thenable<boolean>,
+    saved: boolean,
+  ): Promise<void> {
+    try {
+      await post({ type: 'metadataState', state: await document.metadataState() });
+      if (saved) await post({ type: 'mbtiles', summary: await document.mbtiles() });
+    } catch (error) {
+      await post({ type: 'metadataError', ...classifyDatabaseError(error) });
+    }
   }
 
   private track(editor: Editor): void {

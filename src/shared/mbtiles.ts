@@ -178,3 +178,63 @@ function readLayers(json: string): VectorLayer[] | undefined {
     ];
   });
 }
+
+/** What the MBTiles 1.3 spec finds wrong with a metadata value, by its key. */
+export type MetadataIssue = 'format' | 'bounds' | 'center' | 'zoom' | 'type' | 'json';
+
+/** Formats the spec names, and `jpeg`, which tools write too. */
+const FORMATS = ['pbf', 'png', 'jpg', 'jpeg', 'webp'];
+/** How far north and south web mercator tiles reach. */
+const MERCATOR_LATITUDE = 85.0511287798;
+
+const isLongitude = (n: number) => n >= -180 && n <= 180;
+const isLatitude = (n: number) => n >= -MERCATOR_LATITUDE - 1e-9 && n <= MERCATOR_LATITUDE + 1e-9;
+const isZoom = (n: number) => Number.isInteger(n) && n >= 0 && n <= 30;
+
+/** Whether a value reads the way the spec defines its key; keys it doesn't define always do. */
+export function checkMetadataValue(name: string, value: string): MetadataIssue | undefined {
+  const text = value.trim();
+  switch (name) {
+    case 'format':
+      return FORMATS.includes(text.toLowerCase()) ? undefined : 'format';
+    case 'bounds': {
+      const [west, south, east, north, ...rest] = numbers(text);
+      const fine =
+        rest.length === 0 &&
+        [west, south, east, north].every(Number.isFinite) &&
+        isLongitude(west) &&
+        isLongitude(east) &&
+        isLatitude(south) &&
+        isLatitude(north) &&
+        south <= north;
+      return fine ? undefined : 'bounds';
+    }
+    case 'center': {
+      const parts = numbers(text);
+      const [longitude, latitude, zoom] = parts;
+      const fine =
+        (parts.length === 2 || parts.length === 3) &&
+        parts.every(Number.isFinite) &&
+        isLongitude(longitude) &&
+        isLatitude(latitude) &&
+        (zoom === undefined || isZoom(zoom));
+      return fine ? undefined : 'center';
+    }
+    case 'minzoom':
+    case 'maxzoom':
+      return text !== '' && isZoom(Number(text)) ? undefined : 'zoom';
+    case 'type':
+      return text === 'overlay' || text === 'baselayer' ? undefined : 'type';
+    case 'json':
+      try {
+        const parsed: unknown = JSON.parse(text);
+        return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)
+          ? undefined
+          : 'json';
+      } catch {
+        return 'json';
+      }
+    default:
+      return undefined;
+  }
+}

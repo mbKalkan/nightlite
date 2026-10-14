@@ -1,9 +1,11 @@
+import { stat } from 'node:fs/promises';
 import type * as vscode from 'vscode';
 import type {
   CopyRange,
   DatabaseHeader,
   FullCell,
   MbtilesSummary,
+  MetadataState,
   ObjectDetails,
   ObjectInfo,
   RowPage,
@@ -18,7 +20,26 @@ import { DatabaseClient, DatabaseFailure } from './database/client';
 import type { CopiedText } from './database/rows';
 import { connectionTarget } from './database/target';
 import { zoomLevels } from '../shared/mbtiles';
+import { MetadataEdits, type MetadataEdit } from './metadataEdits';
 import type { DatabaseBackend } from './requests';
+
+/** A file's size and last change, to tell whether it changed since. */
+interface FileStamp {
+  size: number;
+  mtimeMs: number;
+}
+
+async function stampOf(path: string): Promise<FileStamp | undefined> {
+  try {
+    const { size, mtimeMs } = await stat(path);
+    return { size, mtimeMs };
+  } catch {
+    return undefined;
+  }
+}
+
+const sameStamp = (a: FileStamp | undefined, b: FileStamp | undefined) =>
+  a !== undefined && b !== undefined && a.size === b.size && a.mtimeMs === b.mtimeMs;
 
 /**
  * An open database file, shared by every editor showing it. One worker reads the schema and
@@ -38,6 +59,13 @@ export class DatabaseDocument implements vscode.CustomDocument, DatabaseBackend 
   private readonly owned: { dispose(): void }[] = [];
   private objects: Promise<SchemaObject[]> | undefined;
   private readonly counts = new Map<string, Promise<number>>();
+  /** An MBTiles file's metadata and the changes to it not saved yet (D-005). */
+  readonly metadata = new MetadataEdits();
+  private metadataRead: Promise<void> | undefined;
+  private readonly metadataListeners = new Set<(saved: boolean) => void>();
+  /** The file when its metadata was read, and as our last save left it. */
+  private readStamp: FileStamp | undefined;
+  private ownStamp: FileStamp | undefined;
 
   constructor(
     readonly uri: vscode.Uri,
@@ -148,6 +176,89 @@ export class DatabaseDocument implements vscode.CustomDocument, DatabaseBackend 
     return (await this.open()).storedTile(key);
   }
 
+  async metadataState(): Promise<MetadataState> {
+    await this.loadMetadata();
+    return this.metadata.state();
+  }
+
+  /**
+   * Sets a metadata key, or removes it with null. Returns the edit for VS Code's undo stack, or
+   * undefined when there's no new one: nothing changed, or `amend` folded the keystroke into the
+   * edit being typed into that key.
+   */
+  editMetadata(name: string, value: string | null, amend = false): MetadataEdit | undefined {
+    const { changed, edit } = this.metadata.edit(name, value, amend);
+    if (changed) this.metadataChanged();
+    if (!edit) return undefined;
+    return {
+      undo: () => {
+        edit.undo();
+        this.metadataChanged();
+      },
+      redo: () => {
+        edit.redo();
+        this.metadataChanged();
+      },
+    };
+  }
+
+  /** Called whenever the metadata the editors show changes: an edit, a save, a revert. */
+  onMetadata(listener: (saved: boolean) => void): { dispose(): void } {
+    this.metadataListeners.add(listener);
+    return { dispose: () => this.metadataListeners.delete(listener) };
+  }
+
+  /** Whether the file changed since its metadata was read, by another program. */
+  async changedSinceRead(): Promise<boolean> {
+    if (!this.readStamp) return false;
+    return !sameStamp(this.readStamp, await stampOf(this.uri.fsPath));
+  }
+
+  /** Whether the file is as our last save left it: a change notice that finds it so is ours. */
+  async isOwnWrite(): Promise<boolean> {
+    return sameStamp(this.ownStamp, await stampOf(this.uri.fsPath));
+  }
+
+  /**
+   * Writes the metadata changes into the file, on a worker and a connection of their own, then
+   * reads the file afresh: connections opened before may hold pages from before the write.
+   */
+  async saveMetadata(): Promise<void> {
+    const changes = this.metadata.changes();
+    if (changes.length === 0) return;
+    const client = this.newClient();
+    try {
+      await client.writeMetadata(this.uri.fsPath, changes);
+    } finally {
+      client.dispose();
+    }
+    this.ownStamp = await stampOf(this.uri.fsPath);
+    this.metadata.clear();
+    this.close();
+    await this.loadMetadata();
+    this.metadataChanged(true);
+  }
+
+  revertMetadata(): void {
+    this.metadata.clear();
+    this.metadataChanged();
+  }
+
+  private loadMetadata(): Promise<void> {
+    this.metadataRead ??= (async () => {
+      const stamp = await stampOf(this.uri.fsPath);
+      const read = await (await this.open()).metadataRows();
+      this.readStamp = stamp;
+      this.metadata.setRows(read);
+    })();
+    this.metadataRead.catch(() => (this.metadataRead = undefined));
+    return this.metadataRead;
+  }
+
+  private metadataChanged(saved = false): void {
+    for (const listener of this.metadataListeners) listener(saved);
+  }
+
   /**
    * The file changed on disk: drops the connections and everything read through them, so the
    * next question opens the file afresh, and tells the editors to load it again.
@@ -173,6 +284,7 @@ export class DatabaseDocument implements vscode.CustomDocument, DatabaseBackend 
     this.owned.forEach((disposable) => disposable.dispose());
     this.owned.length = 0;
     this.resetListeners.clear();
+    this.metadataListeners.clear();
   }
 
   private close(): void {
@@ -183,6 +295,8 @@ export class DatabaseDocument implements vscode.CustomDocument, DatabaseBackend 
     this.reader = undefined;
     this.objects = undefined;
     this.counts.clear();
+    // Changes not saved stay; the metadata under them is read again.
+    this.metadataRead = undefined;
   }
 
   private open(): Promise<DatabaseClient> {

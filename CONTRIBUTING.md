@@ -39,7 +39,9 @@ with **Extensions: Install from VSIX…**.
 | `scripts/`                | Build, fixture generation and helper scripts                              |
 
 Databases are opened in worker threads of the extension host, with SQLite in read-only mode, so
-long queries never block VS Code and nothing is written to the file or next to it. The webview
+long queries never block VS Code and nothing is written to the file or next to it. The only write
+is an MBTiles tileset's metadata when the user saves it (`src/extension/database/metadataWrite.ts`),
+on a short-lived connection of its own. The webview
 only ever receives the rows on screen. It runs under a strict Content Security Policy with no
 network access.
 

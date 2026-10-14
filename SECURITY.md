@@ -1,8 +1,12 @@
 # Security policy
 
-Nightlite only reads the files you open. It opens databases read-only, writes nothing to them or
-next to them, loads no SQLite extensions, makes no network requests and shows data in a webview
-with a strict Content Security Policy.
+Nightlite reads the files you open. It opens databases read-only, writes nothing to them or next
+to them, loads no SQLite extensions, makes no network requests and shows data in a webview with a
+strict Content Security Policy.
+
+The one thing it writes is an MBTiles tileset's metadata, and only when you save changes you made
+to it: on a connection of its own, closed right after, in one transaction, with Nightlite's own
+parameterized statements, to the `metadata` table only. Nothing you type runs as SQL.
 
 ## Reporting a vulnerability
 

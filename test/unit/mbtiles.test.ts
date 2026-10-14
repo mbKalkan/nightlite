@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { afterAll, describe, expect, it } from 'vitest';
 import { readMbtiles, zoomCount, zoomRange } from '../../src/extension/database/mbtiles';
-import { readTileset } from '../../src/shared/mbtiles';
+import { checkMetadataValue, readTileset } from '../../src/shared/mbtiles';
 
 const open = (name: string) => new DatabaseSync(`test/fixtures/${name}`, { readOnly: true });
 const vector = open('sample.mbtiles');
@@ -87,5 +87,44 @@ describe('MBTiles queries', () => {
     expect([0, 1, 2].map((zoom) => zoomCount(vector, zoom))).toEqual([1, 4, 16]);
     expect(zoomRange(dedup)).toEqual({ min: 0, max: 1 });
     expect(zoomCount(dedup, 1)).toBe(4);
+  });
+});
+
+describe('checkMetadataValue', () => {
+  it('reads values the way the MBTiles 1.3 spec defines their keys', () => {
+    const fine: [string, string][] = [
+      ['format', 'pbf'],
+      ['format', 'JPEG'],
+      ['bounds', '-180,-85.05112878,180,85.05112878'],
+      ['bounds', ' 28.9, 41 , 29.1,41.1 '],
+      ['center', '28.98,41.01,12'],
+      ['center', '0,0'],
+      ['minzoom', '0'],
+      ['maxzoom', '22'],
+      ['type', 'baselayer'],
+      ['json', '{"vector_layers":[]}'],
+      ['anything', 'goes'],
+    ];
+    for (const [name, value] of fine) expect(checkMetadataValue(name, value), name).toBeUndefined();
+  });
+
+  it('says what is wrong with values that read otherwise', () => {
+    const wrong: [string, string, string][] = [
+      ['format', 'image/png', 'format'],
+      ['bounds', '-180,-85,180', 'bounds'],
+      ['bounds', '-190,-85,180,85', 'bounds'],
+      ['bounds', '0,10,1,5', 'bounds'],
+      ['center', '28.98,41.01,12.5', 'center'],
+      ['center', '28.98', 'center'],
+      ['minzoom', '', 'zoom'],
+      ['maxzoom', '2.5', 'zoom'],
+      ['maxzoom', '31', 'zoom'],
+      ['type', 'base', 'type'],
+      ['json', '[1, 2]', 'json'],
+      ['json', '{oops', 'json'],
+    ];
+    for (const [name, value, issue] of wrong) {
+      expect(checkMetadataValue(name, value), `${name}=${value}`).toBe(issue);
+    }
   });
 });
