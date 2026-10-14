@@ -47,7 +47,8 @@ tileset opens at once.
   selected cell's storage class and value
 - <kbd>Ctrl</kbd>+<kbd>C</kbd> copies the selection with full values, even where the grid cuts them
   short: one cell as it is, more as tab-separated text that spreadsheets paste into columns
-- Cell details beside the grid: JSON indented and colored, long text in full, BLOBs as a hex dump
+- Cell details beside the grid: JSON indented and colored, long text in full, BLOBs as the image
+  or text they hold, or as a hex dump
 - The schema of each table: columns, indexes and foreign keys, and the statement that created it
 - When another program changes the file, the view reloads and keeps your place
 

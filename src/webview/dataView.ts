@@ -9,6 +9,7 @@ import type {
 import { formatBytes, formatCount } from '../shared/units';
 import { COPY_LIMIT, COPY_ROWS, realText } from '../shared/values';
 import { CellDetail, type CellPlace } from './detail/cellDetail';
+import { hexBytes } from './detail/format';
 import { STORAGE_CLASSES, cellText } from './grid/cells';
 import { DataGrid, type CellRange, type GridPosition } from './grid/dataGrid';
 import { databaseErrorMessage, element, format } from './views';
@@ -413,7 +414,7 @@ function wholeCell(value: CellValue, type: string): FullCell | undefined {
       // Small BLOBs arrive whole: their first bytes are all of them.
       const blob = value as { size: number; head: string };
       return blob.head.length / 2 >= blob.size
-        ? { type, text: blob.head, length: blob.size }
+        ? { type, text: blob.head, length: blob.size, bytes: hexBytes(blob.head) }
         : undefined;
     }
     default:

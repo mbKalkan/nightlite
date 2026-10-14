@@ -1,4 +1,7 @@
-import { existsSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type Page } from '@playwright/test';
 import { openViewer } from './harness';
 import type { ThemeName } from './themes';
@@ -330,8 +333,13 @@ test('shows long text, BLOBs, NULL and big integers in full, and copies them', a
   await expect(facts(page)).toHaveText('TEXT · 11,200 characters');
   await expect.poll(async () => (await shown(page, '.nl-detail-text'))?.length).toBe(11200);
 
-  // The grid holds 48 bytes of this PNG; the panel shows all 84.
+  // The grid holds 48 bytes of this PNG; the panel shows the picture, and all 84 bytes in hex.
   await cell(page, '17', 2).click();
+  await expect(facts(page)).toHaveText('BLOB · PNG · 84 B · 8 × 8 px');
+  await expect(page.locator('.nl-detail-image img')).toBeVisible();
+  await expect(page.getByRole('radio', { name: 'Image' })).toHaveAttribute('aria-checked', 'true');
+  await page.screenshot({ path: `${SCREENS}/detail-image-dark.png` });
+  await page.getByRole('radio', { name: 'Hex' }).click();
   await expect(facts(page)).toHaveText('BLOB · PNG · 84 B');
   await expect
     .poll(() => shown(page, '.nl-detail-hex'))
@@ -340,6 +348,21 @@ test('shows long text, BLOBs, NULL and big integers in full, and copies them', a
     );
   expect((await shown(page, '.nl-detail-hex'))?.split('\n')).toHaveLength(11);
   await page.screenshot({ path: `${SCREENS}/detail-blob-dark.png` });
+
+  // The arrow keys switch between the views.
+  await page.keyboard.press('ArrowLeft');
+  await expect(page.getByRole('radio', { name: 'Image' })).toBeFocused();
+  await expect(page.locator('.nl-detail-image img')).toBeVisible();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('radio', { name: 'Hex' })).toBeFocused();
+
+  // Hex, once picked, stays for the next picture; other BLOBs have no other view.
+  await cell(page, '16', 2).click();
+  await expect(facts(page)).toHaveText('BLOB · 0 B');
+  await expect(page.locator('.nl-detail-views')).toBeHidden();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByRole('radio', { name: 'Hex' })).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('.nl-detail-hex')).toBeVisible();
 
   await page.keyboard.press('ArrowDown');
   await expect(facts(page)).toHaveText('NULL');
@@ -390,4 +413,39 @@ test('resizes the cell detail panel by its sash, and keeps the width', async ({ 
   await expect(detail(page)).toBeVisible();
   near(await width(), before + 80);
   expect(viewer.problems).toEqual([]);
+});
+
+test('shows text kept in a BLOB as text, with its hex dump a click away', async ({ page }) => {
+  const folder = mkdtempSync(join(tmpdir(), 'nightlite-blobs-'));
+  try {
+    const path = join(folder, 'blobs.sqlite');
+    const db = new DatabaseSync(path);
+    db.exec('CREATE TABLE notes (id INTEGER PRIMARY KEY, body BLOB)');
+    const text = (value: string) => new TextEncoder().encode(value);
+    db.prepare('INSERT INTO notes (body) VALUES (?), (?)').run(
+      text('{"name":"Gece","tags":["sqlite","mbtiles"],"zoom":14}'),
+      text('İstanbul\nAnkara'),
+    );
+    db.close();
+
+    const viewer = await openViewer(page, 'light');
+    await viewer.load(path);
+    await open(page, 'table:notes');
+    await detailToggle(page).click();
+    await cell(page, '1', 1).click();
+    await expect(facts(page)).toHaveText('BLOB · 53 B');
+    await expect(page.getByRole('radio', { name: 'Text' })).toHaveAttribute('aria-checked', 'true');
+    await expect.poll(() => shown(page, '.nl-detail-json')).toContain('"tags": [');
+    await page.screenshot({ path: `${SCREENS}/detail-blob-text-light.png` });
+
+    await page.keyboard.press('ArrowDown');
+    await expect.poll(() => shown(page, '.nl-detail-text')).toBe('İstanbul\nAnkara');
+    await page.getByRole('radio', { name: 'Hex' }).click();
+    await expect.poll(() => shown(page, '.nl-detail-hex')).toMatch(/^00000000 {2}c4 b0 73 74/);
+    expect(viewer.problems).toEqual([]);
+  } finally {
+    // Closing the page closes the database, which Windows won't let go of while it's open.
+    await page.close();
+    rmSync(folder, { recursive: true, force: true });
+  }
 });

@@ -31,6 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Save Tile…** writes the tile shown to a file you pick, named by its address, like
   `14-8723-5412.pbf`: images as they are, vector tiles uncompressed, or gzip-compressed when the
   name ends in `.gz`. Nothing is written to the tileset.
+- Cell details show a BLOB that holds an image (PNG, JPEG, WebP, GIF) as the picture, with its
+  size in pixels, and one that holds text as the text, JSON indented and colored. **Hex** shows
+  the bytes instead, and stays picked for the next BLOBs until you switch back.
 
 ## [0.1.0] - 2026-10-14
 

@@ -188,6 +188,10 @@ export function viewerStrings(l10n: Localizer): ViewerStrings {
     featureId: l10n.t('id {0}'),
     noAttributes: l10n.t('No attributes'),
     saveTile: l10n.t('Save Tile…'),
+    showAs: l10n.t('Show as'),
+    viewImage: l10n.t('Image'),
+    viewText: l10n.t('Text'),
+    viewHex: l10n.t('Hex'),
     metadataHint: l10n.t(
       'Changes go into the tileset when you save it (Ctrl+S), and Undo (Ctrl+Z) takes them back. Nothing is written before.',
     ),

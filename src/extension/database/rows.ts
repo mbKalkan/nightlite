@@ -13,6 +13,9 @@ import {
   COPY_ROWS,
   DETAIL_BYTES,
   DETAIL_TEXT,
+  IMAGE_PREVIEW,
+  imageKind,
+  looksLikeText,
   realText,
   tsvField,
 } from '../../shared/values';
@@ -226,21 +229,39 @@ export class TableReader {
    */
   cell(position: number, total: number, column: number, rowid?: string): FullCell {
     const columns = this.info.columns.slice(column, column + 1);
-    const select = `SELECT ${valueList(columns, DETAIL_TEXT, DETAIL_BYTES)} ${this.from}`;
-    let row: unknown[] | undefined;
+    let where: string;
+    let params: SQLInputValue[];
     if (this.info.hasRowid && (rowid !== undefined || this.span)) {
       const id = rowid !== undefined ? BigInt(rowid) : this.rowidAt(position, total);
-      row = id === undefined ? undefined : this.one(`${select} WHERE rowid = ?`, [id]);
+      if (id === undefined) return { type: 'n', text: '', length: 0 };
+      [where, params] = ['WHERE rowid = ?', [id]];
     } else {
-      row = this.one(`${select} LIMIT 1 OFFSET ?`, [position]);
+      [where, params] = ['LIMIT 1 OFFSET ?', [position]];
     }
+    const read = (blobLimit: number) =>
+      this.one(
+        `SELECT ${valueList(columns, DETAIL_TEXT, blobLimit)} ${this.from} ${where}`,
+        params,
+      );
+    const row = read(DETAIL_BYTES);
     if (!row || columns.length === 0) return { type: 'n', text: '', length: 0 };
     const kind = row[0] as string;
-    return {
+    const length = Number(row[2] ?? 0);
+    const cell: FullCell = {
       type: STORAGE_CLASSES[kind] ?? 't',
       text: copyText(kind, row[1]),
-      length: Number(row[2] ?? 0),
+      length,
     };
+    if (kind === 'blob' && row[1]) {
+      // Images and text are read whole, to show as what they are; anything else stays a hex dump.
+      const head = row[1] as Uint8Array;
+      const limit = imageKind(head) ? IMAGE_PREVIEW : looksLikeText(head) ? DETAIL_TEXT : 0;
+      if (length <= limit) {
+        const whole = length <= DETAIL_BYTES ? head : (read(limit)?.[1] as Uint8Array | undefined);
+        if (whole) cell.bytes = new Uint8Array(whole);
+      }
+    }
+    return cell;
   }
 
   private one(sql: string, params: SQLInputValue[]): unknown[] | undefined {

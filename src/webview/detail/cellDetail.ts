@@ -1,6 +1,6 @@
 import type { FullCell, ViewerStrings } from '../../shared/protocol';
 import { formatBytes, formatCount } from '../../shared/units';
-import { DETAIL_BYTES } from '../../shared/values';
+import { DETAIL_BYTES, imageKind, looksLikeText } from '../../shared/values';
 import { STORAGE_CLASSES, blobKind, escapeHtml } from '../grid/cells';
 import { icons } from '../icons';
 import { element, format } from '../views';
@@ -21,6 +21,9 @@ export interface DetailActions {
   resized(width: number): void;
 }
 
+/** How a BLOB is shown: as the picture or text it holds, or its first bytes in hex. */
+type BlobView = 'image' | 'text' | 'hex';
+
 /** The narrowest the panel gets, and the least it leaves the grid. */
 const MIN_WIDTH = 200;
 /** One arrow key press on the sash. */
@@ -39,6 +42,10 @@ export class CellDetail {
   private readonly note: HTMLElement;
   private readonly body: HTMLElement;
   private readonly copyButton: HTMLButtonElement;
+  private readonly views: HTMLElement;
+  /** Set once the user picks Hex for a BLOB, so the next ones show as hex too. */
+  private preferHex = false;
+  private imageUrl: string | undefined;
 
   constructor(
     private readonly strings: ViewerStrings,
@@ -60,6 +67,7 @@ export class CellDetail {
         <button type="button" class="nl-icon-button" data-action="close">${icons.close}</button>
       </div>
       <div class="nl-detail-facts"></div>
+      <div class="nl-segmented nl-detail-views" role="radiogroup" hidden></div>
       <div class="nl-detail-note"></div>
       <div class="nl-detail-body" tabindex="0"></div>`;
     const find = (selector: string) => this.element.querySelector(selector) as HTMLElement;
@@ -68,6 +76,15 @@ export class CellDetail {
     this.facts = find('.nl-detail-facts');
     this.note = find('.nl-detail-note');
     this.body = find('.nl-detail-body');
+    this.views = find('.nl-detail-views');
+    this.views.setAttribute('aria-label', strings.showAs);
+    this.views.addEventListener('keydown', (event) => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      event.preventDefault();
+      const other = this.views.querySelector<HTMLButtonElement>('[aria-checked="false"]');
+      other?.click();
+      other?.focus();
+    });
     this.body.setAttribute('aria-label', strings.cellDetail);
     this.copyButton = find('[data-action="copy"]') as HTMLButtonElement;
     const closeButton = find('[data-action="close"]');
@@ -91,6 +108,7 @@ export class CellDetail {
 
   /** No cell to show, as in an empty table. */
   clear(): void {
+    this.reset();
     this.setPlace(undefined);
     this.setFacts([]);
     this.note.textContent = '';
@@ -100,6 +118,7 @@ export class CellDetail {
 
   /** The cell's place while its value is on its way. */
   loading(place: CellPlace): void {
+    this.reset();
     this.setPlace(place);
     this.setFacts([]);
     this.note.textContent = '';
@@ -109,6 +128,7 @@ export class CellDetail {
   }
 
   show(place: CellPlace, cell: FullCell): void {
+    this.reset();
     this.setPlace(place);
     this.copyButton.disabled = false;
     this.body.removeAttribute('aria-busy');
@@ -124,18 +144,9 @@ export class CellDetail {
         this.setFacts([type]);
         this.body.replaceChildren(element('pre', 'nl-detail-value', cell.text));
         return;
-      case 'b': {
-        const kind = blobKind(cell.text);
-        this.setFacts([type, kind ?? '', formatBytes(cell.length, this.locale)]);
-        if (cell.length > DETAIL_BYTES) {
-          this.note.textContent = format(
-            this.strings.showingBytes,
-            formatBytes(DETAIL_BYTES, this.locale),
-          );
-        }
-        this.body.replaceChildren(element('pre', 'nl-detail-hex', hexDump(cell.text)));
+      case 'b':
+        this.showBlob(cell);
         return;
-      }
       default: {
         this.setFacts([
           type,
@@ -158,6 +169,7 @@ export class CellDetail {
 
   /** The value couldn't be read. */
   fail(place: CellPlace, title: string, detail: string): void {
+    this.reset();
     this.setPlace(place);
     this.setFacts([]);
     this.note.textContent = '';
@@ -170,6 +182,92 @@ export class CellDetail {
 
   focus(): void {
     this.body.focus();
+  }
+
+  /** A BLOB: the picture or text it holds when it holds one, with its hex dump a click away. */
+  private showBlob(cell: FullCell): void {
+    const { strings, locale } = this;
+    const facts = [STORAGE_CLASSES.b, blobKind(cell.text) ?? '', formatBytes(cell.length, locale)];
+    this.setFacts(facts);
+    const bytes = cell.bytes;
+    const preview: BlobView | undefined = !bytes
+      ? undefined
+      : imageKind(bytes)
+        ? 'image'
+        : looksLikeText(bytes)
+          ? 'text'
+          : undefined;
+    const render = (view: BlobView) => {
+      if (this.imageUrl) URL.revokeObjectURL(this.imageUrl);
+      this.imageUrl = undefined;
+      this.note.textContent = '';
+      this.setFacts(facts);
+      for (const button of this.views.querySelectorAll<HTMLElement>('[data-view]')) {
+        const checked = button.dataset.view === view;
+        button.setAttribute('aria-checked', String(checked));
+        button.tabIndex = checked ? 0 : -1;
+      }
+      if (view === 'image' && bytes) {
+        const kind = imageKind(bytes) ?? 'png';
+        this.imageUrl = URL.createObjectURL(
+          new Blob([bytes as BlobPart], { type: `image/${kind}` }),
+        );
+        const frame = element('div', 'nl-detail-image');
+        const image = document.createElement('img');
+        image.alt = '';
+        image.addEventListener('load', () => {
+          image.classList.toggle('nl-pixelated', image.naturalWidth < 64);
+          this.setFacts([
+            ...facts,
+            format(strings.imageSize, String(image.naturalWidth), String(image.naturalHeight)),
+          ]);
+        });
+        image.src = this.imageUrl;
+        frame.append(image);
+        this.body.replaceChildren(frame);
+      } else if (view === 'text' && bytes) {
+        const text = new TextDecoder().decode(bytes);
+        const json = formatJson(text);
+        const pre = element('pre', json ? 'nl-detail-json' : 'nl-detail-text');
+        pre.innerHTML = json ?? escapeHtml(text);
+        this.body.replaceChildren(pre);
+      } else {
+        if (cell.length > DETAIL_BYTES) {
+          this.note.textContent = format(strings.showingBytes, formatBytes(DETAIL_BYTES, locale));
+        }
+        this.body.replaceChildren(element('pre', 'nl-detail-hex', hexDump(cell.text)));
+      }
+    };
+    if (preview) {
+      const names: Record<BlobView, string> = {
+        image: strings.viewImage,
+        text: strings.viewText,
+        hex: strings.viewHex,
+      };
+      this.views.replaceChildren(
+        ...([preview, 'hex'] as BlobView[]).map((view) => {
+          const button = element('button', 'nl-segment', names[view]) as HTMLButtonElement;
+          button.type = 'button';
+          button.dataset.view = view;
+          button.setAttribute('role', 'radio');
+          button.addEventListener('click', () => {
+            this.preferHex = view === 'hex';
+            render(view);
+          });
+          return button;
+        }),
+      );
+      this.views.hidden = false;
+    }
+    render(preview && !this.preferHex ? preview : 'hex');
+  }
+
+  /** Drops what the last cell showed: its view switch and the image URL it held on to. */
+  private reset(): void {
+    if (this.imageUrl) URL.revokeObjectURL(this.imageUrl);
+    this.imageUrl = undefined;
+    this.views.hidden = true;
+    this.views.replaceChildren();
   }
 
   private setUpSash(sash: HTMLElement): void {
