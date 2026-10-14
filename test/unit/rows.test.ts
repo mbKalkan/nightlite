@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterAll, describe, expect, it } from 'vitest';
 import { TableReader, TEXT_LIMIT, quote } from '../../src/extension/database/rows';
+import { READ_OPTIONS } from '../../src/extension/database/target';
 import { COPY_LIMIT, DETAIL_BYTES } from '../../src/shared/values';
 
 const sample = new DatabaseSync('test/fixtures/sample.sqlite', { readOnly: true });
@@ -129,6 +130,33 @@ describe('TableReader', () => {
     const reader = new TableReader(sample, 'empty_table');
     expect(reader.info.estimate).toBe(0);
     expect(reader.page(0, 100, 0)).toMatchObject({ rows: [], end: true });
+  });
+});
+
+describe('legacy double-quoted strings', () => {
+  it('reads the views GDAL writes into GeoPackages', () => {
+    const gpkg = new DatabaseSync('test/fixtures/sample.gpkg', READ_OPTIONS);
+    try {
+      const view = new TableReader(gpkg, 'st_geometry_columns');
+      expect(view.page(0, 10, 10).rows[0]).toEqual([
+        'cities',
+        'geom',
+        'ST_POINT',
+        4326,
+        'WGS 84 geodetic',
+      ]);
+    } finally {
+      gpkg.close();
+    }
+    // A connection as Node opens it by default can't.
+    const strict = new DatabaseSync('test/fixtures/sample.gpkg', { readOnly: true });
+    try {
+      expect(() => new TableReader(strict, 'st_geometry_columns').page(0, 10, 10)).toThrow(
+        /no such column/,
+      );
+    } finally {
+      strict.close();
+    }
   });
 });
 

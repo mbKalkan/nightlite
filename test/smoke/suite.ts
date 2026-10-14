@@ -103,6 +103,11 @@ const tests: Record<string, () => Promise<void>> = {
       await client.open(path.join(FIXTURES, 'sample.sqlite'));
       const names = (await client.schema()).map((object) => object.name);
       assert.ok(names.includes('albums') && names.includes('album_list'), names.join(', '));
+      // GDAL's GeoPackage views quote strings with double quotes; this VS Code's SQLite reads them.
+      await client.open(path.join(FIXTURES, 'sample.gpkg'));
+      const view = await client.rows('st_geometry_columns', 0, 10, 10);
+      assert.equal(view.rows[0]?.[2], 'ST_POINT');
+      await client.open(path.join(FIXTURES, 'sample.sqlite'));
       const details = await client.objectDetails('albums');
       assert.equal(details.columns?.length, 8);
       assert.deepEqual(details.foreignKeys?.[0]?.from, ['artist_id']);

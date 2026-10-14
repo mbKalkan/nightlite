@@ -7,6 +7,7 @@ import { readMbtiles, zoomCount, zoomRange } from './mbtiles';
 import type { WorkerCall, WorkerRequest, WorkerResponse } from './messages';
 import { TableReader } from './rows';
 import { readSchema } from './schema';
+import { READ_OPTIONS } from './target';
 
 let db: DatabaseSync | undefined;
 const readers = new Map<string, TableReader>();
@@ -17,7 +18,7 @@ function handle(call: WorkerCall): unknown {
       readers.clear();
       db?.close();
       // Read-only: SQLite refuses every write, and load_extension stays off by default.
-      db = new DatabaseSync(call.target, { readOnly: true, timeout: 2000 });
+      db = new DatabaseSync(call.target, READ_OPTIONS);
       return null;
     case 'schema':
       return readSchema(connection());

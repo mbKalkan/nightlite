@@ -1,5 +1,17 @@
 import { existsSync } from 'node:fs';
+import type { DatabaseSyncOptions } from 'node:sqlite';
 import { pathToFileURL } from 'node:url';
+
+/**
+ * How the viewer opens every database: read-only, waiting a little for a writer's lock, and
+ * reading double-quoted strings as SQLite's own shell does. GDAL writes GeoPackage views with
+ * them (`"ST_" || geometry_type_name`), which a stricter connection can't read at all.
+ */
+export const READ_OPTIONS: DatabaseSyncOptions = {
+  readOnly: true,
+  timeout: 2000,
+  enableDoubleQuotedStringLiterals: true,
+};
 
 /**
  * What to hand SQLite to open a database read-only without creating anything next to it

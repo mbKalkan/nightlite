@@ -13,11 +13,11 @@ const large = process.argv.includes('--large');
 mkdirSync(FIXTURES, { recursive: true });
 
 /** Creates a database from scratch, so reruns give the same file. */
-function create(path, build) {
+function create(path, build, options = {}) {
   for (const suffix of ['', '-journal', '-wal', '-shm']) {
     rmSync(path + suffix, { force: true });
   }
-  const db = new DatabaseSync(path);
+  const db = new DatabaseSync(path, options);
   try {
     build(db);
   } finally {
@@ -498,8 +498,10 @@ create(join(FIXTURES, 'dedup.mbtiles'), (db) => {
 });
 
 // GeoPackage 1.3 with one feature table of points (GeoPackage binary geometry: header + WKB).
-create(join(FIXTURES, 'sample.gpkg'), (db) => {
-  db.exec(`
+create(
+  join(FIXTURES, 'sample.gpkg'),
+  (db) => {
+    db.exec(`
     PRAGMA application_id = 0x47504b47;
     PRAGMA user_version = 10300;
     CREATE TABLE gpkg_spatial_ref_sys (
@@ -518,41 +520,52 @@ create(join(FIXTURES, 'sample.gpkg'), (db) => {
     );
     CREATE TABLE cities (fid INTEGER PRIMARY KEY AUTOINCREMENT, geom POINT, name TEXT, population INTEGER);
   `);
-  const srs = db.prepare('INSERT INTO gpkg_spatial_ref_sys VALUES (?, ?, ?, ?, ?, ?)');
-  srs.run('Undefined cartesian SRS', -1, 'NONE', -1, 'undefined', null);
-  srs.run('Undefined geographic SRS', 0, 'NONE', 0, 'undefined', null);
-  srs.run(
-    'WGS 84 geodetic',
-    4326,
-    'EPSG',
-    4326,
-    'GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]]',
-    null,
-  );
-  db.prepare(
-    "INSERT INTO gpkg_contents VALUES ('cities', 'features', 'Cities', 'Sample cities', '2026-01-01T00:00:00.000Z', 26.0, 36.0, 45.0, 42.0, 4326)",
-  ).run();
-  db.prepare(
-    "INSERT INTO gpkg_geometry_columns VALUES ('cities', 'geom', 'POINT', 4326, 0, 0)",
-  ).run();
+    const srs = db.prepare('INSERT INTO gpkg_spatial_ref_sys VALUES (?, ?, ?, ?, ?, ?)');
+    srs.run('Undefined cartesian SRS', -1, 'NONE', -1, 'undefined', null);
+    srs.run('Undefined geographic SRS', 0, 'NONE', 0, 'undefined', null);
+    srs.run(
+      'WGS 84 geodetic',
+      4326,
+      'EPSG',
+      4326,
+      'GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]]',
+      null,
+    );
+    db.prepare(
+      "INSERT INTO gpkg_contents VALUES ('cities', 'features', 'Cities', 'Sample cities', '2026-01-01T00:00:00.000Z', 26.0, 36.0, 45.0, 42.0, 4326)",
+    ).run();
+    db.prepare(
+      "INSERT INTO gpkg_geometry_columns VALUES ('cities', 'geom', 'POINT', 4326, 0, 0)",
+    ).run();
 
-  const point = (x, y) => {
-    const blob = Buffer.alloc(8 + 21);
-    blob.write('GP', 0, 'ascii');
-    blob[2] = 0; // version 1
-    blob[3] = 0b00000001; // no envelope, little-endian
-    blob.writeInt32LE(4326, 4);
-    blob[8] = 1; // WKB little-endian
-    blob.writeUInt32LE(1, 9); // Point
-    blob.writeDoubleLE(x, 13);
-    blob.writeDoubleLE(y, 21);
-    return blob;
-  };
-  const city = db.prepare('INSERT INTO cities (geom, name, population) VALUES (?, ?, ?)');
-  city.run(point(28.9784, 41.0082), 'İstanbul', 15655924);
-  city.run(point(32.8597, 39.9334), 'Ankara', 5803482);
-  city.run(point(27.1428, 38.4237), 'İzmir', 4479525);
-});
+    const point = (x, y) => {
+      const blob = Buffer.alloc(8 + 21);
+      blob.write('GP', 0, 'ascii');
+      blob[2] = 0; // version 1
+      blob[3] = 0b00000001; // no envelope, little-endian
+      blob.writeInt32LE(4326, 4);
+      blob[8] = 1; // WKB little-endian
+      blob.writeUInt32LE(1, 9); // Point
+      blob.writeDoubleLE(x, 13);
+      blob.writeDoubleLE(y, 21);
+      return blob;
+    };
+    const city = db.prepare('INSERT INTO cities (geom, name, population) VALUES (?, ?, ?)');
+    city.run(point(28.9784, 41.0082), 'İstanbul', 15655924);
+    city.run(point(32.8597, 39.9334), 'Ankara', 5803482);
+    city.run(point(27.1428, 38.4237), 'İzmir', 4479525);
+
+    // GDAL adds this view to the GeoPackages it writes, with a double-quoted string in it.
+    db.exec(`
+    CREATE VIEW st_geometry_columns AS
+      SELECT table_name, column_name, "ST_" || geometry_type_name AS geometry_type_name,
+        g.srs_id, srs_name
+      FROM gpkg_geometry_columns AS g JOIN gpkg_spatial_ref_sys AS s
+      WHERE g.srs_id = s.srs_id;
+  `);
+  },
+  { enableDoubleQuotedStringLiterals: true },
+);
 
 writeFileSync(join(FIXTURES, 'empty.sqlite'), '');
 writeFileSync(join(FIXTURES, 'not-sqlite.sqlite'), 'This is a text file, not a database.\n');
