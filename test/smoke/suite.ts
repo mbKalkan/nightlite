@@ -290,6 +290,25 @@ const tests: Record<string, () => Promise<void>> = {
         reason: 'stopped',
         detail: '',
       });
+
+      // A table's rows sorted and filtered, the same way.
+      await session.answer({
+        type: 'runView',
+        run: 4,
+        name: 'events',
+        view: { order: { column: 0, descending: true }, search: '', filters: ['<=10'] },
+      });
+      assert.equal(last('queryResult')?.rows, 10);
+      await session.answer({
+        type: 'rows',
+        request: 2,
+        name: 'events',
+        query: 4,
+        start: 0,
+        count: 3,
+        total: 10,
+      });
+      assert.deepEqual(last('rowPage')?.page.rowids, ['10', '9', '8']);
     } finally {
       session.dispose();
       document.dispose();
@@ -319,6 +338,9 @@ const tests: Record<string, () => Promise<void>> = {
       'nightlite.openQuery',
       'nightlite.copy',
       'nightlite.copyAsMarkdown',
+      'nightlite.sortAscending',
+      'nightlite.sortDescending',
+      'nightlite.clearSort',
     ]) {
       assert.ok(commands.includes(command), command);
     }

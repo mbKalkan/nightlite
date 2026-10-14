@@ -34,6 +34,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cell details show a BLOB that holds an image (PNG, JPEG, WebP, GIF) as the picture, with its
   size in pixels, and one that holds text as the text, JSON indented and colored. **Hex** shows
   the bytes instead, and stays picked for the next BLOBs until you switch back.
+- Sort a table or view by a column, ascending or descending, from the column's header or the
+  grid's context menu (**Sort Ascending**, **Sort Descending**, **Clear Sort**).
+- **Search rows** above the grid (<kbd>Ctrl</kbd>+<kbd>F</kbd>) shows the rows with some text in
+  any column, and **Filter by Column** adds a filter under each column's name: text to find, or
+  `=`, `<>`, `<`, `<=`, `>`, `>=` and a value, or `=NULL` and `<>NULL`. Sorting and filtering
+  run in the background with their progress shown, and **Stop** (<kbd>Escape</kbd>) keeps the
+  rows found so far; the sorted or filtered rows then scroll, copy and jump like the table's
+  own. Each table keeps its sort, search and filters.
 - **SQL Query**, in the sidebar and as **Open SQL Query** in the Command Palette: run a statement
   that reads (`SELECT`, `WITH … SELECT`, `VALUES`, `EXPLAIN`, or a `PRAGMA` that reports, like
   `table_info`) with <kbd>Ctrl</kbd>+<kbd>Enter</kbd>, and its rows show in the same grid tables

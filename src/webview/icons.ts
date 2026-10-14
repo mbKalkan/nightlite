@@ -33,6 +33,9 @@ export const icons = {
   zoomIn: svg('<circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14M5 7h4M7 5v4"/>'),
   metadata: svg('<path d="M3 4h2M7 4h6M3 8h2M7 8h6M3 12h2M7 12h4"/>'),
   query: svg('<path d="M3 4.5 6.5 8 3 11.5M8.5 12H13"/>'),
+  sort: svg('<path d="M5 13V3M2.5 5.5 5 3l2.5 2.5M11 3v10M8.5 10.5 11 13l2.5-2.5"/>'),
+  filter: svg('<path d="M2 3h12L9.5 8.5V13l-3-1.5v-3z"/>'),
+  search: svg('<circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/>'),
   save: svg('<path d="M8 2.5v8M4.5 7 8 10.5 11.5 7M3 13.5h10"/>'),
   zoomOut: svg('<circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14M5 7h4"/>'),
 } as const;

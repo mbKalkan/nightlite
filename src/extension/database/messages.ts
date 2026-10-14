@@ -1,6 +1,7 @@
 // Messages between the extension host and the worker thread that owns a database connection.
 
 import type { CopyRange } from '../../shared/protocol';
+import type { RowView } from '../../shared/rowFilter';
 import type { MetadataChange } from './metadataWrite';
 
 export type WorkerCall =
@@ -25,6 +26,8 @@ export type WorkerCall =
   | { type: 'writeMetadata'; path: string; changes: MetadataChange[] }
   /** A statement from the query page, on a worker of its own (D-021). */
   | { type: 'queryStart'; sql: string }
+  /** A table's or view's rows sorted or filtered, on a worker of its own (D-022). */
+  | { type: 'viewStart'; name: string; view: RowView }
   | { type: 'queryStep'; ms: number }
   | { type: 'queryStop' }
   | { type: 'queryRows'; start: number; count: number }

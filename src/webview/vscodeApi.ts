@@ -1,4 +1,5 @@
 import type { WebviewToHostMessage } from '../shared/protocol';
+import type { RowView } from '../shared/rowFilter';
 import type { RowScheme, TileKey } from '../shared/tiles';
 
 /** What the webview remembers across reloads and while its tab is in the background. */
@@ -17,6 +18,10 @@ export interface ViewState {
   hiddenLayers?: string[];
   /** The statement on the query page. */
   sql?: string;
+  /** How tables' rows are sorted and filtered, by table; plain ones are left out. */
+  views?: Record<string, RowView>;
+  /** Whether the row of column filters shows. */
+  filterRow?: boolean;
 }
 
 interface VsCodeApi {

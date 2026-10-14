@@ -11,15 +11,16 @@ import {
   zoomRange,
 } from '../../src/extension/database/mbtiles';
 import { writeMetadata } from '../../src/extension/database/metadataWrite';
-import { QueryRun } from '../../src/extension/database/query';
+import { QueryRun, type ResultRows } from '../../src/extension/database/query';
 import { TableReader } from '../../src/extension/database/rows';
 import { readSchema } from '../../src/extension/database/schema';
+import { viewRows } from '../../src/extension/database/sortedRows';
 import { READ_OPTIONS, connectionTarget } from '../../src/extension/database/target';
 import { TileLister, readStoredTile, readTile } from '../../src/extension/database/tiles';
 import { readFileHeader } from '../../src/extension/fileHeader';
 import { MetadataEdits, type MetadataEdit } from '../../src/extension/metadataEdits';
 import { tileBytes } from '../../src/extension/tileFile';
-import { QuerySession, type QueryConnection } from '../../src/extension/querySession';
+import { EditorSessions, type QueryConnection } from '../../src/extension/querySession';
 import { answer } from '../../src/extension/requests';
 import { viewerStrings } from '../../src/extension/strings';
 import { buildWebviewHtml } from '../../src/extension/webviewHtml';
@@ -68,7 +69,7 @@ export interface HostOptions {
 function queryConnection(target: string, pause: () => number): QueryConnection {
   const db = new DatabaseSync(target, READ_OPTIONS);
   db.exec('PRAGMA query_only = ON');
-  let run: QueryRun | undefined;
+  let run: ResultRows | undefined;
   let open = true;
   const running = () => {
     if (!run || !open) throw new Error('No query has run');
@@ -87,6 +88,7 @@ function queryConnection(target: string, pause: () => number): QueryConnection {
     );
   return {
     queryStart: async (sql) => (run = new QueryRun(db, sql)).info,
+    viewStart: async (name, view) => (run = viewRows(db, new TableReader(db, name), view)).info,
     queryStep: (ms) => later(() => running().step(pause() ? 0 : ms)),
     queryStop: async () => running().stop(),
     queryRows: async (start, count) => running().page(start, count),
@@ -173,7 +175,7 @@ export async function openViewer(page: Page, theme: ThemeName) {
   const postMetadata = () => post({ type: 'metadataState', state: metadata().state() });
   /** How long each step of a query waits, so a test can catch one running. */
   let queryPause = 0;
-  const queries = new QuerySession(
+  const queries = new EditorSessions(
     () => {
       if (!database) throw new Error('No database loaded');
       const { path, wal } = database;

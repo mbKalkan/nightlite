@@ -1,5 +1,6 @@
 // Messages exchanged between the extension host and the webview.
 
+import type { RowView } from './rowFilter';
 import type { TileKey } from './tiles';
 
 /** What a SQLite file holds, as far as the viewer tells them apart. */
@@ -316,6 +317,25 @@ export interface ViewerStrings {
   featureId: string;
   noAttributes: string;
   saveTile: string;
+  /** Sorting, filtering and searching a table's rows (D-022). */
+  searchRows: string;
+  searchHint: string;
+  filterByColumn: string;
+  filterPlaceholder: string;
+  filterColumn: string;
+  filterHint: string;
+  sortBy: string;
+  sortAscendingHint: string;
+  sortDescendingHint: string;
+  clearSortHint: string;
+  sorting: string;
+  filtering: string;
+  matchingRows: string;
+  oneMatchingRow: string;
+  noMatches: string;
+  viewLimit: string;
+  viewStopped: string;
+  viewErrorTitle: string;
   /** The query page (D-021). */
   query: string;
   queryStatement: string;
@@ -398,6 +418,12 @@ export interface RevealMessage {
 /** Open SQL Query, from the Command Palette. */
 export interface OpenQueryMessage {
   type: 'openQuery';
+}
+
+/** Sort Ascending, Sort Descending or Clear Sort, from the grid's context menu. */
+export interface SortRowsMessage {
+  type: 'sortRows';
+  direction: 'ascending' | 'descending' | null;
 }
 
 /** Copy or Copy as Markdown Table, from the context menu or the Command Palette. */
@@ -691,6 +717,7 @@ export type HostToWebviewMessage =
   | RevealMessage
   | CopySelectionMessage
   | OpenQueryMessage
+  | SortRowsMessage
   | ObjectInfoMessage
   | RowCountMessage
   | RowPageMessage
@@ -739,6 +766,8 @@ export type WebviewToHostMessage =
   | { type: 'copy'; request: number; name: string; query?: number; range: CopyRange }
   /** Runs a statement from the query page, ending the one running (D-021). */
   | { type: 'runQuery'; run: number; sql: string }
+  /** Works out a table's or view's rows sorted or filtered, ending the run before (D-022). */
+  | { type: 'runView'; run: number; name: string; view: RowView }
   /** Stops the query running, keeping the rows read so far. */
   | { type: 'stopQuery'; run: number }
   /** Asks for an object's columns, indexes and foreign keys, for its Schema page. */

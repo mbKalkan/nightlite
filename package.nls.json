@@ -7,5 +7,8 @@
   "command.goToTable": "Go to Table…",
   "command.openQuery": "Open SQL Query",
   "command.copy": "Copy",
-  "command.copyAsMarkdown": "Copy as Markdown Table"
+  "command.copyAsMarkdown": "Copy as Markdown Table",
+  "command.sortAscending": "Sort Ascending",
+  "command.sortDescending": "Sort Descending",
+  "command.clearSort": "Clear Sort"
 }

@@ -292,9 +292,10 @@ test('copies from the context menu, also as a Markdown table', async ({ page }) 
   const viewer = await openViewer(page, 'dark');
   await viewer.load('sample.sqlite');
   await open(page, 'table:value_kinds');
-  // VS Code reads the menu's items from here.
+  // VS Code reads the menu's items from here; a table's rows also sort.
   expect(JSON.parse((await grid(page).getAttribute('data-vscode-context')) ?? '')).toEqual({
     webviewSection: 'grid',
+    sortable: true,
     preventDefaultContextMenuItems: true,
   });
 

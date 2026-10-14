@@ -7,7 +7,8 @@ import type {
   ViewerStrings,
   WebviewToHostMessage,
 } from '../shared/protocol';
-import { DataView, type DataViewOptions } from './dataView';
+import { isPlain, type RowView } from '../shared/rowFilter';
+import { DataView, type DataViewOptions, type RunMessage } from './dataView';
 import { DatabaseOverview, listedTables, type TablesState } from './databaseOverview';
 import type { GridPosition } from './grid/dataGrid';
 import { icons } from './icons';
@@ -35,6 +36,10 @@ export interface ShellEvents {
   onTileView(view: TileView): void;
   /** The statement on the query page changed. */
   onSql(sql: string): void;
+  /** A table's rows were sorted or filtered otherwise; plain views are left out. */
+  onViews(views: Record<string, RowView>): void;
+  /** The row of column filters was shown or hidden. */
+  onFilterRow(open: boolean): void;
   send(message: WebviewToHostMessage): void;
 }
 
@@ -55,11 +60,20 @@ type DataMessage = Extract<
   { type: 'objectInfo' | 'rowCount' | 'rowPage' | 'objectError' | 'copied' | 'cellValue' }
 >;
 
+/** Typing in the search box applies once it pauses; the view itself waits for that. */
+type SearchKey = 'Enter' | 'Escape';
+
 /** The viewer's frame: the file name on top, the database's objects on the left, content right. */
 export class Shell {
   private readonly fileName: HTMLElement;
   private readonly tabs: HTMLElement;
   private readonly detailToggle: HTMLElement;
+  private readonly search: HTMLElement;
+  private readonly searchInput: HTMLInputElement;
+  private readonly filterToggle: HTMLElement;
+  /** How each table's rows are sorted and filtered, by name. */
+  private readonly views: Map<string, RowView>;
+  private filterRow: boolean;
   private readonly sidebar: HTMLElement;
   private readonly content: HTMLElement;
   private file: { info: FileInfo; locale: string; strings: ViewerStrings } | undefined;
@@ -99,9 +113,13 @@ export class Shell {
       detailWidth?: number;
       tileView: TileView;
       sql?: string;
+      views?: Record<string, RowView>;
+      filterRow?: boolean;
     },
   ) {
     this.sql = initial.sql;
+    this.views = new Map(Object.entries(initial.views ?? {}));
+    this.filterRow = initial.filterRow ?? false;
     this.tab = initial.tab;
     this.tileView = initial.tileView;
     this.detail = initial.detail;
@@ -110,10 +128,15 @@ export class Shell {
       <div class="nl-shell">
         <header class="nl-toolbar">
           <span class="nl-file-name"></span>
+          <div class="nl-search" hidden>
+            ${icons.search}
+            <input type="text" class="nl-search-input" spellcheck="false">
+          </div>
           <div class="nl-tabs" role="tablist" hidden>
             <button type="button" class="nl-tab" role="tab" data-tab="data"></button>
             <button type="button" class="nl-tab" role="tab" data-tab="schema"></button>
           </div>
+          <button type="button" class="nl-icon-button nl-filter-toggle" hidden>${icons.filter}</button>
           <button type="button" class="nl-icon-button nl-detail-toggle" hidden>${icons.panelRight}</button>
         </header>
         <div class="nl-body">
@@ -125,6 +148,16 @@ export class Shell {
     this.tabs = root.querySelector('.nl-tabs') as HTMLElement;
     this.detailToggle = root.querySelector('.nl-detail-toggle') as HTMLElement;
     this.detailToggle.addEventListener('click', () => this.shownData()?.setDetail(!this.detail));
+    this.search = root.querySelector('.nl-search') as HTMLElement;
+    this.searchInput = root.querySelector('.nl-search-input') as HTMLInputElement;
+    this.searchInput.addEventListener('input', () => this.data?.setSearch(this.searchInput.value));
+    this.searchInput.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== 'Escape') return;
+      event.preventDefault();
+      this.onSearchKey(event.key);
+    });
+    this.filterToggle = root.querySelector('.nl-filter-toggle') as HTMLElement;
+    this.filterToggle.addEventListener('click', () => this.setFilterRow(!this.filterRow));
     this.sidebar = root.querySelector('.nl-sidebar') as HTMLElement;
     this.content = root.querySelector('.nl-content') as HTMLElement;
     this.tabs.addEventListener('click', (event) => {
@@ -155,6 +188,12 @@ export class Shell {
     this.detailToggle.title = strings.cellDetail;
     this.detailToggle.setAttribute('aria-label', strings.cellDetail);
     this.markDetail();
+    this.searchInput.placeholder = strings.searchRows;
+    this.searchInput.title = strings.searchHint;
+    this.searchInput.setAttribute('aria-label', strings.searchRows);
+    this.filterToggle.title = strings.filterByColumn;
+    this.filterToggle.setAttribute('aria-label', strings.filterByColumn);
+    this.markFilterRow();
     if (!reloading) this.show('overview');
     // Until the schema arrives the database is still opening.
     this.content.setAttribute('aria-busy', 'true');
@@ -212,6 +251,8 @@ export class Shell {
     this.sidebar.hidden = true;
     this.tabs.hidden = true;
     this.detailToggle.hidden = true;
+    this.search.hidden = true;
+    this.filterToggle.hidden = true;
     const messages: Record<LoadError, string> = {
       empty: strings.errorEmpty,
       notSqlite: strings.errorNotSqlite,
@@ -250,9 +291,15 @@ export class Shell {
     this.queryPage?.focus();
   }
 
-  /** How the query running is getting on, its results, or why it didn't run. */
-  queryMessage(message: QueryPageMessage): void {
+  /** How a run is getting on, its rows, or why there are none: a query's, or a table view's. */
+  queryMessage(message: QueryPageMessage | RunMessage): void {
     this.queryPage?.receive(message);
+    this.data?.receiveRun(message);
+  }
+
+  /** Sort Ascending, Sort Descending or Clear Sort, from the context menu. */
+  sortRows(direction: 'ascending' | 'descending' | null): void {
+    if (this.shown !== 'query') this.data?.sortActive(direction);
   }
 
   /** An object's columns, indexes and foreign keys, for its Schema page. */
@@ -322,11 +369,9 @@ export class Shell {
 
   /** Hands the host's answers about tables, views and query results to the rows on screen. */
   dataMessage(message: DataMessage): void {
-    if ('query' in message && message.query !== undefined) {
-      this.queryPage?.receiveData(message);
-    } else {
-      this.data?.receive(message);
-    }
+    // Each grid takes only the answers to its own questions.
+    this.data?.receive(message);
+    if ('query' in message && message.query !== undefined) this.queryPage?.receiveData(message);
   }
 
   private show(key: EntryKey): void {
@@ -349,15 +394,32 @@ export class Shell {
     // On the Schema tab the toggle keeps its place, so the tabs don't move under the mouse.
     this.detailToggle.hidden = !hasRows && key !== 'query';
     this.detailToggle.classList.toggle('nl-invisible', hasRows && this.tab !== 'data');
+    // Searching and filtering are for a table's rows; on its Schema tab they keep their place.
+    this.search.hidden = !hasRows;
+    this.search.classList.toggle('nl-invisible', this.tab !== 'data');
+    this.filterToggle.hidden = !hasRows;
+    this.filterToggle.classList.toggle('nl-invisible', this.tab !== 'data');
     if (hasRows) this.lastObject = object.name;
     if (object && hasRows && this.tab === 'data') {
-      this.data = new DataView(
-        object.name,
-        strings,
-        locale,
-        (message) => this.events.send(message),
-        { ...this.dataOptions(), position: this.positions.get(object.name) },
-      );
+      const name = object.name;
+      const view = this.views.get(name);
+      this.searchInput.value = view?.search ?? '';
+      this.data = new DataView(name, strings, locale, (message) => this.events.send(message), {
+        ...this.dataOptions(),
+        position: this.positions.get(name),
+        view,
+        filters: this.filterRow,
+        onView: (changed) => {
+          if (isPlain(changed)) this.views.delete(name);
+          else this.views.set(name, changed);
+          this.events.onViews(Object.fromEntries(this.views));
+          if (document.activeElement !== this.searchInput) this.searchInput.value = changed.search;
+        },
+        onFind: () => {
+          this.searchInput.focus();
+          this.searchInput.select();
+        },
+      });
       this.content.replaceChildren(this.data.element);
       return;
     }
@@ -528,6 +590,31 @@ export class Shell {
 
   private markDetail(): void {
     this.detailToggle.setAttribute('aria-pressed', String(this.detail));
+  }
+
+  private markFilterRow(): void {
+    this.filterToggle.setAttribute('aria-pressed', String(this.filterRow));
+  }
+
+  /** Shows or hides the column filters of every table; hidden, they filter nothing. */
+  private setFilterRow(open: boolean): void {
+    this.filterRow = open;
+    this.markFilterRow();
+    this.events.onFilterRow(open);
+    this.data?.setFilters(open);
+    if (open) this.data?.focusFilter();
+  }
+
+  /** Enter applies the search at once; Escape clears it, or goes back to the rows. */
+  private onSearchKey(key: SearchKey): void {
+    if (key === 'Enter') {
+      this.data?.setSearch(this.searchInput.value, true);
+    } else if (this.searchInput.value) {
+      this.searchInput.value = '';
+      this.data?.setSearch('', true);
+    } else {
+      this.data?.focus();
+    }
   }
 
   private markTab(): void {

@@ -1,9 +1,12 @@
 import type { CellValue, ObjectInfo, RowPage, ViewerStrings } from '../../shared/protocol';
+import type { RowView } from '../../shared/rowFilter';
 import { icons } from '../icons';
 import { cellText, escapeHtml, renderCell } from './cells';
 
 export const ROW_HEIGHT = 22;
 export const HEADER_HEIGHT = 26;
+/** The row of column filters under the header, when shown. */
+const FILTER_HEIGHT = 28;
 /** Rows are fetched in blocks of this many. */
 export const BLOCK = 100;
 const OVERSCAN = 8;
@@ -51,6 +54,19 @@ export interface GridEvents {
   onCopy(range: CellRange, toEnd: boolean, markdown: boolean): void;
   /** Enter or a double click on a cell: show it in full. */
   onEnter(): void;
+  /** A column's sort button was clicked. */
+  onSort?(column: number): void;
+  /** A column's filter changed; `now` when Enter asks for it at once. */
+  onFilter?(column: number, text: string, now: boolean): void;
+  /** Ctrl+F: find rows. */
+  onFind?(): void;
+}
+
+export interface GridOptions {
+  /** What the grid says when there are no rows. */
+  empty?: string;
+  /** Columns have sort buttons and can be filtered: a table's or view's rows, not a query's. */
+  sortable?: boolean;
 }
 
 /** What a mouse drag extends: cells, whole rows (from a row header) or whole columns. */
@@ -67,7 +83,12 @@ export class DataGrid {
   readonly element: HTMLElement;
   private readonly sizer: HTMLElement;
   private readonly header: HTMLElement;
+  private readonly filters: HTMLElement;
   private readonly layer: HTMLElement;
+  /** The header's height: its row of names, and the filters' row when shown. */
+  private headerHeight = HEADER_HEIGHT;
+  private view: RowView = { order: null, search: '', filters: [] };
+  private empty: string;
   private readonly blocks = new Map<number, Block>();
   private readonly pending = new Set<number>();
   private total: number;
@@ -102,9 +123,9 @@ export class DataGrid {
     private readonly strings: ViewerStrings,
     private readonly locale: string,
     private readonly events: GridEvents,
-    /** What the grid says when there are no rows. */
-    private readonly empty = strings.noRows,
+    private readonly options: GridOptions = {},
   ) {
+    this.empty = options.empty ?? strings.noRows;
     this.total = info.estimate ?? BLOCK;
     this.element = document.createElement('div');
     this.element.className = 'nl-grid';
@@ -118,17 +139,23 @@ export class DataGrid {
       info.name ? strings.rowsOf.replace('{0}', info.name) : strings.queryResults,
     );
     // The context menu offers Copy and Copy as Markdown Table here, in place of Cut, Copy, Paste.
+    // Tables' and views' grids sort too.
     this.element.dataset.vscodeContext = JSON.stringify({
       webviewSection: 'grid',
+      sortable: options.sortable === true,
       preventDefaultContextMenuItems: true,
     });
     this.element.innerHTML = `
       <div class="nl-grid-sizer">
-        <div class="nl-grid-header" role="row" aria-rowindex="1"></div>
+        <div class="nl-grid-top">
+          <div class="nl-grid-header" role="row" aria-rowindex="1"></div>
+          <div class="nl-grid-filters" role="row" aria-rowindex="2" hidden></div>
+        </div>
         <div class="nl-grid-rows" role="rowgroup"></div>
       </div>`;
     this.sizer = this.element.querySelector('.nl-grid-sizer') as HTMLElement;
     this.header = this.element.querySelector('.nl-grid-header') as HTMLElement;
+    this.filters = this.element.querySelector('.nl-grid-filters') as HTMLElement;
     this.layer = this.element.querySelector('.nl-grid-rows') as HTMLElement;
 
     this.setWidths(info.columns.map((column) => this.measureHeader(column)));
@@ -142,6 +169,15 @@ export class DataGrid {
       const hit = this.hit(event);
       if (hit && !hit.header && hit.col >= 0) this.events.onEnter();
     });
+    this.header.addEventListener('click', (event) => {
+      const button = (event.target as Element).closest<HTMLElement>('.nl-grid-sort');
+      if (button) this.events.onSort?.(Number(button.dataset.col));
+    });
+    this.filters.addEventListener('input', (event) => {
+      const input = event.target as HTMLInputElement;
+      this.events.onFilter?.(Number(input.dataset.col), input.value, false);
+    });
+    this.filters.addEventListener('keydown', (event) => this.onFilterKey(event));
     window.addEventListener('mouseup', this.onMouseUp);
     document.addEventListener('copy', this.onCopy);
     document.addEventListener('selectstart', this.onSelectStart);
@@ -202,6 +238,48 @@ export class DataGrid {
     return this.blocks.get(Math.floor(row / BLOCK))?.rowids?.[row % BLOCK];
   }
 
+  /** Starts over with other rows, as when they're sorted or filtered: the header stays as is. */
+  reset(total: number, exact: boolean, empty = this.options.empty ?? this.strings.noRows): void {
+    this.blocks.clear();
+    this.pending.clear();
+    this.failed = false;
+    this.empty = empty;
+    this.total = Math.max(0, total);
+    this.exact = exact;
+    this.anchor = this.clamp({ row: 0, col: this.focus.col });
+    this.focus = { ...this.anchor };
+    this.logicalTop = 0;
+    this.element.scrollTop = 0;
+    this.paintHeader();
+    this.events.onTotal(this.total, this.exact);
+    this.layout();
+    this.events.onSelection();
+  }
+
+  /** How the rows are sorted and filtered, for the headers' sort buttons and filters. */
+  setView(view: RowView): void {
+    this.view = view;
+    this.renderSort();
+    this.filters.querySelectorAll<HTMLInputElement>('input').forEach((input, c) => {
+      // Never under the caret: the text being typed is the newest.
+      if (input !== document.activeElement) input.value = view.filters[c] ?? '';
+    });
+  }
+
+  /** Shows or hides the row of column filters. */
+  showFilters(open: boolean): void {
+    if (open === !this.filters.hidden) return;
+    this.filters.hidden = !open;
+    this.headerHeight = HEADER_HEIGHT + (open ? FILTER_HEIGHT : 0);
+    this.element.setAttribute('aria-rowcount', String(this.total + this.headerRows()));
+    this.layout();
+  }
+
+  /** Puts the keyboard in a column's filter: the active cell's, by default. */
+  focusFilter(column = this.focus.col): void {
+    this.filters.querySelector<HTMLInputElement>(`input[data-col="${column}"]`)?.focus();
+  }
+
   /** The exact row count arrived from the background count. */
   setTotal(total: number, exact = true): void {
     const last = this.total - 1;
@@ -242,7 +320,7 @@ export class DataGrid {
   /** Shows why rows couldn't be read, in place of the rows. */
   fail(title: string, detail: string): void {
     this.failed = true;
-    this.layer.style.top = `${HEADER_HEIGHT}px`;
+    this.layer.style.top = `${this.headerHeight}px`;
     this.layer.innerHTML = `<div class="nl-grid-message" role="alert"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(detail)}</span></div>`;
   }
 
@@ -258,11 +336,11 @@ export class DataGrid {
   layout(): void {
     const content = this.total * ROW_HEIGHT;
     const scrolled = Math.min(content, MAX_SCROLL_HEIGHT);
-    this.sizer.style.height = `${HEADER_HEIGHT + scrolled}px`;
-    this.element.setAttribute('aria-rowcount', String(this.total + 1));
+    this.sizer.style.height = `${this.headerHeight + scrolled}px`;
+    this.element.setAttribute('aria-rowcount', String(this.total + this.headerRows()));
     // Map the browser's scroll range exactly onto the rows', so the end of one is the end of
     // the other.
-    const maxScroll = Math.max(0, HEADER_HEIGHT + scrolled - this.element.clientHeight);
+    const maxScroll = Math.max(0, this.headerHeight + scrolled - this.element.clientHeight);
     this.scale = content > MAX_SCROLL_HEIGHT && maxScroll > 0 ? this.maxLogical() / maxScroll : 1;
     this.logicalTop = Math.min(this.logicalTop, this.maxLogical());
     this.applyRestore();
@@ -290,7 +368,7 @@ export class DataGrid {
   }
 
   private viewHeight(): number {
-    return Math.max(0, this.element.clientHeight - HEADER_HEIGHT);
+    return Math.max(0, this.element.clientHeight - this.headerHeight);
   }
 
   private viewportRows(): number {
@@ -322,6 +400,8 @@ export class DataGrid {
   }
 
   private onKeyDown(event: KeyboardEvent): void {
+    // Keys typed into a column's filter are the filter's.
+    if (event.target !== this.element) return;
     const ctrl = event.ctrlKey || event.metaKey;
     const { row, col } = this.focus;
     const lastRow = this.total - 1;
@@ -364,6 +444,11 @@ export class DataGrid {
       case 'Enter':
         this.events.onEnter();
         break;
+      case 'f':
+      case 'F':
+        if (!ctrl || event.shiftKey || event.altKey || !this.events.onFind) return;
+        this.events.onFind();
+        break;
       case 'Escape': {
         const { row1, col1, row2, col2 } = this.selection;
         if (row1 === row2 && col1 === col2) return;
@@ -377,12 +462,17 @@ export class DataGrid {
   }
 
   private onMouseDown(event: MouseEvent): void {
+    const target = event.target as Element;
+    // A filter is a text box like any other.
+    if (target.closest('.nl-grid-filters')) return;
     if ((event.button !== 0 && event.button !== 2) || this.failed) return;
     const hit = this.hit(event);
     if (!hit) return;
     // Keep the browser from selecting text, and take focus the way a click would have.
     event.preventDefault();
     this.element.focus({ preventScroll: true });
+    // A sort button sorts, on click, and selects nothing.
+    if (target.closest('.nl-grid-sort')) return;
     if (event.button === 2) {
       // A right click selects what it's on, unless that's selected already: the context menu
       // then copies the whole selection.
@@ -529,7 +619,7 @@ export class DataGrid {
     this.fetch(first, last);
 
     const scrollTop = this.element.scrollTop;
-    this.layer.style.top = `${scrollTop + HEADER_HEIGHT + first * ROW_HEIGHT - this.logicalTop}px`;
+    this.layer.style.top = `${scrollTop + this.headerHeight + first * ROW_HEIGHT - this.logicalTop}px`;
     if (this.total === 0 && this.exact) {
       this.layer.innerHTML = `<div class="nl-grid-message">${escapeHtml(this.empty)}</div>`;
       this.element.removeAttribute('aria-activedescendant');
@@ -554,7 +644,7 @@ export class DataGrid {
     const row = block?.rows[index];
     const selected = position >= selection.row1 && position <= selection.row2;
     const head = `nl-grid-cell nl-grid-rowhead${selected ? ' nl-grid-sel' : ''}`;
-    const open = `<div class="nl-grid-row" role="row" aria-rowindex="${position + 2}" data-row="${position}">`;
+    const open = `<div class="nl-grid-row" role="row" aria-rowindex="${position + 1 + this.headerRows()}" data-row="${position}">`;
     if (!block || !row) {
       return `${open.replace('nl-grid-row', 'nl-grid-row nl-grid-loading')}<div class="${head}" role="rowheader" data-col="-1"></div></div>`;
     }
@@ -610,10 +700,76 @@ export class DataGrid {
         `<span class="nl-grid-name">${escapeHtml(column.name)}</span>` +
         (column.primaryKey ? `<span class="nl-grid-key">${icons.index}</span>` : '') +
         (column.type ? `<span class="nl-grid-type">${escapeHtml(column.type)}</span>` : '') +
+        (this.options.sortable
+          ? `<button type="button" class="nl-grid-sort" tabindex="-1" data-col="${c}" aria-label="${escapeHtml(this.strings.sortBy.replace('{0}', column.name))}"></button>`
+          : '') +
         '</div>';
     });
     this.header.innerHTML = html;
+    if (this.options.sortable) {
+      let filters = `<div class="nl-grid-cell nl-grid-rowhead nl-grid-filter-corner" role="gridcell" aria-colindex="1"></div>`;
+      this.info.columns.forEach((column, c) => {
+        const label = escapeHtml(this.strings.filterColumn.replace('{0}', column.name));
+        filters +=
+          `<div class="nl-grid-cell nl-grid-filter-cell" role="gridcell" aria-colindex="${c + 2}" style="width:var(--w${c})">` +
+          `<input type="text" class="nl-grid-filter" data-col="${c}" spellcheck="false" placeholder="${escapeHtml(this.strings.filterPlaceholder)}" aria-label="${label}" title="${escapeHtml(this.strings.filterHint)}">` +
+          '</div>';
+      });
+      this.filters.innerHTML = filters;
+    }
     this.paintHeader();
+    this.renderSort();
+  }
+
+  /** The sort buttons and `aria-sort`, as the rows are sorted. */
+  private renderSort(): void {
+    const { order } = this.view;
+    this.header.querySelectorAll<HTMLElement>('.nl-grid-head').forEach((head, c) => {
+      const direction = order?.column === c ? (order.descending ? 'descending' : 'ascending') : '';
+      if (direction) head.setAttribute('aria-sort', direction);
+      else head.removeAttribute('aria-sort');
+      const button = head.querySelector<HTMLElement>('.nl-grid-sort');
+      if (!button) return;
+      button.dataset.sort = direction;
+      button.innerHTML =
+        direction === 'ascending'
+          ? icons.arrowUp
+          : direction === 'descending'
+            ? icons.arrowDown
+            : icons.sort;
+      button.title =
+        direction === 'ascending'
+          ? this.strings.sortDescendingHint
+          : direction === 'descending'
+            ? this.strings.clearSortHint
+            : this.strings.sortAscendingHint;
+    });
+  }
+
+  /** Enter applies a filter at once; Escape clears it, or goes back to the rows. */
+  private onFilterKey(event: KeyboardEvent): void {
+    const input = event.target as HTMLInputElement;
+    const column = Number(input.dataset.col);
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      this.events.onFilter?.(column, input.value, true);
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      if (input.value) {
+        input.value = '';
+        this.events.onFilter?.(column, '', true);
+      } else {
+        this.element.focus();
+      }
+    } else if (event.key === 'ArrowDown' && !event.altKey) {
+      event.preventDefault();
+      this.element.focus();
+    }
+  }
+
+  /** Header rows above the data rows: the names, and the filters when shown. */
+  private headerRows(): number {
+    return this.filters.hidden ? 1 : 2;
   }
 
   /** Marks the headers of the selected columns. */
@@ -648,6 +804,7 @@ export class DataGrid {
     let width = this.measure(column.name, 600);
     if (column.primaryKey) width += 18;
     if (column.type) width += this.measure(column.type) * 0.85 + 6;
+    if (this.options.sortable) width += 22;
     return width;
   }
 
