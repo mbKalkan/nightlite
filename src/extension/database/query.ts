@@ -10,6 +10,7 @@ import {
   imageKind,
   looksLikeText,
 } from '../../shared/values';
+import { readGeoPackageHeader } from '../../shared/geometry';
 import {
   BLOB_HEAD,
   STORAGE_CLASSES,
@@ -181,7 +182,8 @@ export class QueryRun implements ResultRows {
       length,
     };
     const whole = bytes.length === length;
-    if (whole && (imageKind(bytes) ? length <= IMAGE_PREVIEW : looksLikeText(bytes))) {
+    const picture = imageKind(bytes) || readGeoPackageHeader(bytes);
+    if (whole && (picture ? length <= IMAGE_PREVIEW : looksLikeText(bytes))) {
       cell.bytes = new Uint8Array(bytes);
     }
     return cell;

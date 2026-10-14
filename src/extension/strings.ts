@@ -233,6 +233,8 @@ export function viewerStrings(l10n: Localizer): ViewerStrings {
     viewImage: l10n.t('Image'),
     viewText: l10n.t('Text'),
     viewHex: l10n.t('Hex'),
+    viewGeometry: l10n.t('Geometry'),
+    srsFact: l10n.t('SRS {0}'),
     metadataHint: l10n.t(
       'Changes go into the tileset when you save it (Ctrl+S), and Undo (Ctrl+Z) takes them back. Nothing is written before.',
     ),

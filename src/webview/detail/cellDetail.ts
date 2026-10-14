@@ -1,7 +1,9 @@
 import type { FullCell, ViewerStrings } from '../../shared/protocol';
 import { formatBytes, formatCount } from '../../shared/units';
-import { DETAIL_BYTES, imageKind, looksLikeText } from '../../shared/values';
+import { positions, readGeoPackageGeometry, toWkt, type Geometry } from '../../shared/geometry';
+import { DETAIL_BYTES, DETAIL_TEXT, imageKind, looksLikeText } from '../../shared/values';
 import { STORAGE_CLASSES, blobKind, escapeHtml } from '../grid/cells';
+import { drawGeometry } from './geometryView';
 import { icons } from '../icons';
 import { element, format } from '../views';
 import { formatJson, hexDump } from './format';
@@ -21,8 +23,8 @@ export interface DetailActions {
   resized(width: number): void;
 }
 
-/** How a BLOB is shown: as the picture or text it holds, or its first bytes in hex. */
-type BlobView = 'image' | 'text' | 'hex';
+/** How a BLOB is shown: as the picture, text or geometry it holds, or its first bytes in hex. */
+type BlobView = 'image' | 'text' | 'geometry' | 'wkt' | 'hex';
 
 /** The narrowest the panel gets, and the least it leaves the grid. */
 const MIN_WIDTH = 200;
@@ -81,9 +83,12 @@ export class CellDetail {
     this.views.addEventListener('keydown', (event) => {
       if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
       event.preventDefault();
-      const other = this.views.querySelector<HTMLButtonElement>('[aria-checked="false"]');
-      other?.click();
-      other?.focus();
+      const buttons = [...this.views.querySelectorAll<HTMLButtonElement>('[data-view]')];
+      const at = buttons.findIndex((button) => button.getAttribute('aria-checked') === 'true');
+      const step = event.key === 'ArrowRight' ? 1 : -1;
+      const next = buttons[(at + step + buttons.length) % buttons.length];
+      next?.click();
+      next?.focus();
     });
     this.body.setAttribute('aria-label', strings.cellDetail);
     this.copyButton = find('[data-action="copy"]') as HTMLButtonElement;
@@ -190,13 +195,16 @@ export class CellDetail {
     const facts = [STORAGE_CLASSES.b, blobKind(cell.text) ?? '', formatBytes(cell.length, locale)];
     this.setFacts(facts);
     const bytes = cell.bytes;
+    const geometry = bytes && readGeometry(bytes);
     const preview: BlobView | undefined = !bytes
       ? undefined
-      : imageKind(bytes)
-        ? 'image'
-        : looksLikeText(bytes)
-          ? 'text'
-          : undefined;
+      : geometry
+        ? 'geometry'
+        : imageKind(bytes)
+          ? 'image'
+          : looksLikeText(bytes)
+            ? 'text'
+            : undefined;
     const render = (view: BlobView) => {
       if (this.imageUrl) URL.revokeObjectURL(this.imageUrl);
       this.imageUrl = undefined;
@@ -225,6 +233,27 @@ export class CellDetail {
         image.src = this.imageUrl;
         frame.append(image);
         this.body.replaceChildren(frame);
+      } else if (view === 'geometry' && geometry) {
+        const { header, geometry: shape } = geometry;
+        const points = [...positions(shape)].length;
+        this.setFacts([
+          ...facts,
+          shapeName(shape),
+          format(strings.srsFact, String(header.srsId)),
+          points === 1 ? strings.onePoint : format(strings.pointCount, formatCount(points, locale)),
+        ]);
+        const frame = element('div', 'nl-detail-geometry');
+        frame.append(drawGeometry(shape, this.body.clientWidth - 24));
+        this.body.replaceChildren(frame);
+      } else if (view === 'wkt' && geometry) {
+        const { text, cut } = toWkt(geometry.geometry, DETAIL_TEXT);
+        if (cut) {
+          this.note.textContent = format(
+            strings.showingCharacters,
+            formatCount(text.length, locale),
+          );
+        }
+        this.body.replaceChildren(element('pre', 'nl-detail-text', text));
       } else if (view === 'text' && bytes) {
         const text = new TextDecoder().decode(bytes);
         const json = formatJson(text);
@@ -242,10 +271,14 @@ export class CellDetail {
       const names: Record<BlobView, string> = {
         image: strings.viewImage,
         text: strings.viewText,
+        geometry: strings.viewGeometry,
+        wkt: 'WKT',
         hex: strings.viewHex,
       };
+      const views: BlobView[] =
+        preview === 'geometry' ? ['geometry', 'wkt', 'hex'] : [preview, 'hex'];
       this.views.replaceChildren(
-        ...([preview, 'hex'] as BlobView[]).map((view) => {
+        ...views.map((view) => {
           const button = element('button', 'nl-segment', names[view]) as HTMLButtonElement;
           button.type = 'button';
           button.dataset.view = view;
@@ -315,4 +348,18 @@ export class CellDetail {
   private setFacts(facts: string[]): void {
     this.facts.textContent = facts.filter(Boolean).join(' · ');
   }
+}
+
+/** A GeoPackage geometry, when the bytes hold one that reads; else undefined, shown in hex. */
+function readGeometry(bytes: Uint8Array): ReturnType<typeof readGeoPackageGeometry> {
+  try {
+    return readGeoPackageGeometry(bytes);
+  } catch {
+    return undefined;
+  }
+}
+
+/** A geometry's WKT name and dimensions, like MULTIPOLYGON Z. */
+function shapeName(geometry: Geometry): string {
+  return [geometry.name, geometry.dimensions].filter(Boolean).join(' ');
 }

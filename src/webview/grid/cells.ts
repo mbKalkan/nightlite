@@ -1,6 +1,8 @@
 import type { CellValue } from '../../shared/protocol';
 import { formatBytes } from '../../shared/units';
+import { geometryLabel } from '../../shared/geometry';
 import { realText } from '../../shared/values';
+import { hexBytes } from '../detail/format';
 
 /** SQLite's names for the storage classes, by the letter rows carry them as. */
 export const STORAGE_CLASSES: Record<string, string> = {
@@ -62,7 +64,11 @@ export function renderCell(
     }
     case 'b': {
       const blob = value as { size: number; head: string };
-      const kind = blobKind(blob.head) ?? 'BLOB';
+      // A geometry says what it is, from the first bytes the grid holds: MULTIPOLYGON.
+      const kind =
+        (blob.head.startsWith('4750') && geometryLabel(hexBytes(blob.head))) ||
+        blobKind(blob.head) ||
+        'BLOB';
       return {
         html: `${escapeHtml(kind)} · ${formatBytes(blob.size, locale)}`,
         className: 'nl-blob',
