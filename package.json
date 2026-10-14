@@ -3,7 +3,7 @@
   "displayName": "%displayName%",
   "description": "%description%",
   "icon": "assets/icon.png",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "publisher": "MBKDevStudio",
   "license": "MIT",
   "private": true,

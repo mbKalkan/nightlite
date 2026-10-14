@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-14
+
+First preview release: SQLite databases, MBTiles and GeoPackages, read-only, at any size.
+
 ### Added
 
 - SQLite databases (`.sqlite`, `.sqlite3`, `.db`, `.db3`), MBTiles (`.mbtiles`) and GeoPackage (`.gpkg`)
@@ -17,9 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   it holds, and every table with its rows and columns, counted in the background and drawn to
   scale. A table's name opens it.
 - A sidebar lists the database's tables, views, indexes and triggers, with how many of each.
-  Pick one to see the statement that created it, with its traits (virtual, `WITHOUT ROWID`,
-  `STRICT`, SQLite's own). Move through the list with the arrow keys or by typing a name, as in
-  VS Code's own lists.
+  Pick one to see its rows or the statement that created it, with its traits (virtual,
+  `WITHOUT ROWID`, `STRICT`, SQLite's own). Move through the list with the arrow keys or by
+  typing a name, as in VS Code's own lists.
 - **Go to Table…** (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd>) finds a table, view, index or
   trigger as you type.
 - Databases are opened read-only in a background thread, so VS Code stays responsive. Databases in
@@ -62,3 +66,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`st_geometry_columns`), read as they do in SQLite's own shell instead of failing.
 - When the file changes on disk, the viewer reloads it and comes back to the same table, rows and
   selected cell. Each table also keeps its place while you look at others.
+- Dark, light and high contrast themes, keyboard and screen reader support, and English and
+  Turkish.
+
+[Unreleased]: https://github.com/mbKalkan/nightlite/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/mbKalkan/nightlite/releases/tag/v0.1.0
