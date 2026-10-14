@@ -55,6 +55,13 @@ tileset opens at once.
 
 ![A table's columns, indexes and foreign keys on Nightlite's Schema page](docs/images/schema-dark.png)
 
+![A query joining two tables on Nightlite's SQL Query page, with its rows in the grid below](docs/images/query-dark.png)
+
+- **SQL Query**: run a `SELECT` (<kbd>Ctrl</kbd>+<kbd>Enter</kbd>) and page through its rows in
+  the same grid, with the same copying and cell details. Statements that would write, and
+  `ATTACH` or `VACUUM INTO`, are turned down; the file is never changed. A slow query can be
+  stopped (<kbd>Escape</kbd>) and shows the rows read so far
+
 ### MBTiles
 
 ![An MBTiles tileset's summary in Nightlite: tiles by zoom level, vector layers and metadata](docs/images/mbtiles-dark.png)

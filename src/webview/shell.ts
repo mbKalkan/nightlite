@@ -7,7 +7,7 @@ import type {
   ViewerStrings,
   WebviewToHostMessage,
 } from '../shared/protocol';
-import { DataView } from './dataView';
+import { DataView, type DataViewOptions } from './dataView';
 import { DatabaseOverview, listedTables, type TablesState } from './databaseOverview';
 import type { GridPosition } from './grid/dataGrid';
 import { icons } from './icons';
@@ -16,6 +16,7 @@ import { MetadataEditor } from './mbtiles/metadataEditor';
 import { TileBrowser, type TileMessage, type TileView } from './mbtiles/tileBrowser';
 import { detailsSections } from './schemaDetails';
 import { ObjectTree, objectKey, type EntryKey } from './objectTree';
+import { QueryPage, type QueryPageMessage } from './queryPage';
 import { databaseErrorMessage, element, messageView, objectView, overviewView } from './views';
 
 /** Which page of a table or view is shown: its rows or the statement that made it. */
@@ -32,6 +33,8 @@ export interface ShellEvents {
   onDetailWidth(width: number): void;
   /** The tile browser moved to another tile, or changed how it shows tiles. */
   onTileView(view: TileView): void;
+  /** The statement on the query page changed. */
+  onSql(sql: string): void;
   send(message: WebviewToHostMessage): void;
 }
 
@@ -81,12 +84,24 @@ export class Shell {
   private tab: PageTab;
   private detail: boolean;
   private detailWidth: number | undefined;
+  /** The query page, kept with its statement and results while other pages are shown. */
+  private queryPage: QueryPage | undefined;
+  private sql: string | undefined;
+  /** The table or view last shown, for the query page's first statement. */
+  private lastObject: string | undefined;
 
   constructor(
     root: HTMLElement,
     private readonly events: ShellEvents,
-    initial: { tab: PageTab; detail: boolean; detailWidth?: number; tileView: TileView },
+    initial: {
+      tab: PageTab;
+      detail: boolean;
+      detailWidth?: number;
+      tileView: TileView;
+      sql?: string;
+    },
   ) {
+    this.sql = initial.sql;
     this.tab = initial.tab;
     this.tileView = initial.tileView;
     this.detail = initial.detail;
@@ -109,7 +124,7 @@ export class Shell {
     this.fileName = root.querySelector('.nl-file-name') as HTMLElement;
     this.tabs = root.querySelector('.nl-tabs') as HTMLElement;
     this.detailToggle = root.querySelector('.nl-detail-toggle') as HTMLElement;
-    this.detailToggle.addEventListener('click', () => this.data?.setDetail(!this.detail));
+    this.detailToggle.addEventListener('click', () => this.shownData()?.setDetail(!this.detail));
     this.sidebar = root.querySelector('.nl-sidebar') as HTMLElement;
     this.content = root.querySelector('.nl-content') as HTMLElement;
     this.tabs.addEventListener('click', (event) => {
@@ -189,6 +204,8 @@ export class Shell {
     this.browser = undefined;
     this.metadataEditor = undefined;
     this.overview = undefined;
+    this.queryPage?.dispose();
+    this.queryPage = undefined;
     // A file that can't be shown starts afresh once it can be again.
     this.file = undefined;
     this.tree = undefined;
@@ -223,7 +240,19 @@ export class Shell {
 
   /** Copy or Copy as Markdown Table: the grid's selection, when a grid is in view. */
   copySelection(markdown: boolean): void {
-    this.data?.copySelection(markdown);
+    this.shownData()?.copySelection(markdown);
+  }
+
+  /** Shows the query page and puts the keyboard in its statement. */
+  openQuery(): void {
+    if (!this.tree?.has('query')) return;
+    this.tree.select('query');
+    this.queryPage?.focus();
+  }
+
+  /** How the query running is getting on, its results, or why it didn't run. */
+  queryMessage(message: QueryPageMessage): void {
+    this.queryPage?.receive(message);
   }
 
   /** An object's columns, indexes and foreign keys, for its Schema page. */
@@ -291,9 +320,13 @@ export class Shell {
     this.browser?.receive(message);
   }
 
-  /** Hands the host's answers about tables and views to the rows on screen. */
+  /** Hands the host's answers about tables, views and query results to the rows on screen. */
   dataMessage(message: DataMessage): void {
-    this.data?.receive(message);
+    if ('query' in message && message.query !== undefined) {
+      this.queryPage?.receiveData(message);
+    } else {
+      this.data?.receive(message);
+    }
   }
 
   private show(key: EntryKey): void {
@@ -314,30 +347,30 @@ export class Shell {
     this.tabs.hidden = !hasRows;
     this.markTab();
     // On the Schema tab the toggle keeps its place, so the tabs don't move under the mouse.
-    this.detailToggle.hidden = !hasRows;
-    this.detailToggle.classList.toggle('nl-invisible', this.tab !== 'data');
+    this.detailToggle.hidden = !hasRows && key !== 'query';
+    this.detailToggle.classList.toggle('nl-invisible', hasRows && this.tab !== 'data');
+    if (hasRows) this.lastObject = object.name;
     if (object && hasRows && this.tab === 'data') {
       this.data = new DataView(
         object.name,
         strings,
         locale,
         (message) => this.events.send(message),
-        {
-          detail: this.detail,
-          onDetail: (open) => {
-            this.detail = open;
-            this.markDetail();
-            this.events.onDetail(open);
-          },
-          detailWidth: this.detailWidth,
-          position: this.positions.get(object.name),
-          onDetailWidth: (width) => {
-            this.detailWidth = width;
-            this.events.onDetailWidth(width);
-          },
-        },
+        { ...this.dataOptions(), position: this.positions.get(object.name) },
       );
       this.content.replaceChildren(this.data.element);
+      return;
+    }
+    if (key === 'query' && this.tree && !this.schemaError) {
+      this.queryPage ??= new QueryPage(strings, locale, this.sql ?? this.firstStatement(), {
+        send: (message) => this.events.send(message),
+        onSql: (sql) => {
+          this.sql = sql;
+          this.events.onSql(sql);
+        },
+        dataOptions: () => this.dataOptions(),
+      });
+      this.content.replaceChildren(this.queryPage.element);
       return;
     }
     if (object) {
@@ -404,6 +437,37 @@ export class Shell {
       );
     }
     this.content.replaceChildren(...parts);
+  }
+
+  /** How grids and their detail panels show, the same for every table, view and query. */
+  private dataOptions(): DataViewOptions {
+    return {
+      detail: this.detail,
+      onDetail: (open) => {
+        this.detail = open;
+        this.markDetail();
+        this.events.onDetail(open);
+      },
+      detailWidth: this.detailWidth,
+      onDetailWidth: (width) => {
+        this.detailWidth = width;
+        this.events.onDetailWidth(width);
+      },
+    };
+  }
+
+  /** The rows on screen: a table's or view's, or a query's results. */
+  private shownData(): DataView | undefined {
+    return this.shown === 'query' ? this.queryPage?.data : this.data;
+  }
+
+  /** The query page's first statement: the rows of the table last shown, or the first one. */
+  private firstStatement(): string {
+    const name =
+      this.lastObject ??
+      [...this.objects.values()].find((object) => object.type === 'table' && !object.internal)
+        ?.name;
+    return name === undefined ? '' : `SELECT * FROM "${name.replace(/"/g, '""')}" LIMIT 100;`;
   }
 
   private showDetails(message: DetailsMessage): void {

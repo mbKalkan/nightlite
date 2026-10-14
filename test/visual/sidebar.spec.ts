@@ -40,9 +40,11 @@ test('moves through the tree with the keyboard, as VS Code lists do', async ({ p
   await viewer.load('sample.sqlite');
 
   await item(page, 'overview').focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(selected(page)).toHaveAttribute('data-key', 'query');
   await page.keyboard.press('ArrowDown'); // the Tables group
   await expect(page.locator('.nl-tree-item:focus')).toHaveAttribute('data-key', 'group:table');
-  await expect(selected(page)).toHaveAttribute('data-key', 'overview');
+  await expect(selected(page)).toHaveAttribute('data-key', 'query');
   await page.keyboard.press('ArrowDown');
   await expect(selected(page)).toHaveAttribute('data-key', 'table:album_tags');
   await expect(grid(page, 'album_tags')).toBeVisible();
@@ -103,7 +105,8 @@ test('names the traits of a table', async ({ page }) => {
 test('says when a database has no tables', async ({ page }) => {
   const viewer = await openViewer(page, 'dark');
   await viewer.load('no-tables.sqlite');
-  await expect(page.locator('.nl-tree-item')).toHaveCount(1);
+  // Overview and the query page.
+  await expect(page.locator('.nl-tree-item')).toHaveCount(2);
   await expect(page.locator('.nl-sidebar-note')).toHaveText('This database has no tables yet.');
 });
 

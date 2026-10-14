@@ -16,6 +16,7 @@ import type { TileKey } from '../../shared/tiles';
 import type { WorkerCall, WorkerFailure, WorkerResponse } from './messages';
 import type { MetadataRow } from './mbtiles';
 import type { MetadataChange } from './metadataWrite';
+import type { QueryProgress } from './query';
 import type { CopiedText } from './rows';
 
 /** An error from the database worker, with SQLite's result code when SQLite raised it. */
@@ -121,6 +122,31 @@ export class DatabaseClient {
 
   writeMetadata(path: string, changes: MetadataChange[]): Promise<void> {
     return this.call({ type: 'writeMetadata', path, changes }) as Promise<void>;
+  }
+
+  /** Starts a query from the query page: its columns, or why it can't run. */
+  queryStart(sql: string): Promise<ObjectInfo> {
+    return this.call({ type: 'queryStart', sql }) as Promise<ObjectInfo>;
+  }
+
+  queryStep(ms: number): Promise<QueryProgress> {
+    return this.call({ type: 'queryStep', ms }) as Promise<QueryProgress>;
+  }
+
+  queryStop(): Promise<QueryProgress> {
+    return this.call({ type: 'queryStop' }) as Promise<QueryProgress>;
+  }
+
+  queryRows(start: number, count: number): Promise<RowPage> {
+    return this.call({ type: 'queryRows', start, count }) as Promise<RowPage>;
+  }
+
+  queryCopy(range: CopyRange): Promise<CopiedText> {
+    return this.call({ type: 'queryCopy', range }) as Promise<CopiedText>;
+  }
+
+  queryCell(row: number, column: number): Promise<FullCell> {
+    return this.call({ type: 'queryCell', row, column }) as Promise<FullCell>;
   }
 
   dispose(): void {

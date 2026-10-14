@@ -102,6 +102,8 @@ export class DataGrid {
     private readonly strings: ViewerStrings,
     private readonly locale: string,
     private readonly events: GridEvents,
+    /** What the grid says when there are no rows. */
+    private readonly empty = strings.noRows,
   ) {
     this.total = info.estimate ?? BLOCK;
     this.element = document.createElement('div');
@@ -110,7 +112,11 @@ export class DataGrid {
     this.element.setAttribute('role', 'grid');
     this.element.setAttribute('aria-multiselectable', 'true');
     this.element.setAttribute('aria-colcount', String(info.columns.length + 1));
-    this.element.setAttribute('aria-label', strings.rowsOf.replace('{0}', info.name));
+    // A query's results have no name.
+    this.element.setAttribute(
+      'aria-label',
+      info.name ? strings.rowsOf.replace('{0}', info.name) : strings.queryResults,
+    );
     // The context menu offers Copy and Copy as Markdown Table here, in place of Cut, Copy, Paste.
     this.element.dataset.vscodeContext = JSON.stringify({
       webviewSection: 'grid',
@@ -525,7 +531,7 @@ export class DataGrid {
     const scrollTop = this.element.scrollTop;
     this.layer.style.top = `${scrollTop + HEADER_HEIGHT + first * ROW_HEIGHT - this.logicalTop}px`;
     if (this.total === 0 && this.exact) {
-      this.layer.innerHTML = `<div class="nl-grid-message">${escapeHtml(this.strings.noRows)}</div>`;
+      this.layer.innerHTML = `<div class="nl-grid-message">${escapeHtml(this.empty)}</div>`;
       this.element.removeAttribute('aria-activedescendant');
       return;
     }

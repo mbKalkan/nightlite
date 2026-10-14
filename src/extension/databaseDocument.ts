@@ -239,6 +239,12 @@ export class DatabaseDocument implements vscode.CustomDocument, DatabaseBackend 
     this.metadataChanged(true);
   }
 
+  /** A connection of its own, on a worker of its own, for one query from the query page. */
+  queryConnection(): { connection: DatabaseClient; opened: Promise<void> } {
+    const connection = this.newClient();
+    return { connection, opened: connection.open(this.target()) };
+  }
+
   revertMetadata(): void {
     this.metadata.clear();
     this.metadataChanged();

@@ -22,7 +22,14 @@ export type WorkerCall =
   | { type: 'storedTile'; zoom: number; column: number; row: number }
   | { type: 'metadataRows' }
   /** Writes metadata changes into the file at `path`, on a connection of its own. */
-  | { type: 'writeMetadata'; path: string; changes: MetadataChange[] };
+  | { type: 'writeMetadata'; path: string; changes: MetadataChange[] }
+  /** A statement from the query page, on a worker of its own (D-021). */
+  | { type: 'queryStart'; sql: string }
+  | { type: 'queryStep'; ms: number }
+  | { type: 'queryStop' }
+  | { type: 'queryRows'; start: number; count: number }
+  | { type: 'queryCopy'; range: CopyRange }
+  | { type: 'queryCell'; row: number; column: number };
 
 export type WorkerRequest = WorkerCall & { id: number };
 

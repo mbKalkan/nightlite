@@ -768,6 +768,11 @@ body.vscode-high-contrast .nl-sql-keyword {
   margin-left: 4px;
 }
 
+/* Without the tabs, as on the query page, the toggle keeps to the right on its own. */
+.nl-tabs[hidden] + .nl-detail-toggle {
+  margin-left: auto;
+}
+
 .nl-invisible {
   visibility: hidden;
 }
@@ -1893,4 +1898,63 @@ textarea.nl-metadata-value {
 .nl-detail-image img.nl-pixelated {
   width: 128px;
   image-rendering: pixelated;
+}
+
+/* The query page: a statement, Run and Stop, and the rows it returns (D-021). */
+.nl-query {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.nl-query-bar {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  padding: 8px 12px;
+}
+
+.nl-query-bar .nl-button {
+  margin-top: 0;
+}
+
+.nl-query-status {
+  color: var(--vscode-descriptionForeground);
+  font-variant-numeric: tabular-nums;
+}
+
+.nl-query-editor {
+  flex: none;
+  height: 8.5em;
+  min-height: 3em;
+  max-height: 60%;
+  margin: 0 12px 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 2px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: var(--vscode-editor-font-size, 13px);
+  line-height: 1.4;
+  tab-size: 2;
+  resize: vertical;
+  outline: none;
+}
+
+.nl-query-editor:focus {
+  border-color: var(--vscode-focusBorder);
+}
+
+.nl-query-editor::placeholder {
+  color: var(--vscode-input-placeholderForeground);
+}
+
+.nl-query-results {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  border-top: 1px solid var(--nl-border);
 }

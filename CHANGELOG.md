@@ -34,6 +34,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cell details show a BLOB that holds an image (PNG, JPEG, WebP, GIF) as the picture, with its
   size in pixels, and one that holds text as the text, JSON indented and colored. **Hex** shows
   the bytes instead, and stays picked for the next BLOBs until you switch back.
+- **SQL Query**, in the sidebar and as **Open SQL Query** in the Command Palette: run a statement
+  that reads (`SELECT`, `WITH … SELECT`, `VALUES`, `EXPLAIN`, or a `PRAGMA` that reports, like
+  `table_info`) with <kbd>Ctrl</kbd>+<kbd>Enter</kbd>, and its rows show in the same grid tables
+  do, with copying and cell details. Statements that would write are turned down before they
+  run, and queries run on a read-only connection of their own, so the file is never changed.
+  **Stop** (<kbd>Escape</kbd>) keeps the rows read so far; results hold up to 100,000 rows.
 - **Copy as Markdown Table**, in the grid's context menu and the Command Palette: the selected
   cells as a Markdown table headed by their column names, columns lined up and numbers aligned
   to the right, ready to paste into a README, an issue or a chat. A right click selects the cell

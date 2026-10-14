@@ -6,6 +6,7 @@ import { readDetails } from './details';
 import { readMbtiles, readMetadataRows, zoomCount, zoomRange } from './mbtiles';
 import { writeMetadata } from './metadataWrite';
 import type { WorkerCall, WorkerRequest, WorkerResponse } from './messages';
+import { QueryRun } from './query';
 import { TableReader } from './rows';
 import { readSchema } from './schema';
 import { READ_OPTIONS } from './target';
@@ -14,6 +15,7 @@ import { TileLister, readStoredTile, readTile } from './tiles';
 let db: DatabaseSync | undefined;
 const readers = new Map<string, TableReader>();
 const listers = new Map<number, TileLister>();
+let query: QueryRun | undefined;
 
 function handle(call: WorkerCall): unknown {
   switch (call.type) {
@@ -61,6 +63,21 @@ function handle(call: WorkerCall): unknown {
       return null;
     case 'storedTile':
       return readStoredTile(connection(), call.zoom, call.column, call.row);
+    case 'queryStart':
+      // On top of the read-only connection: SQLite refuses even temporary tables (D-021).
+      connection().exec('PRAGMA query_only = ON');
+      query = new QueryRun(connection(), call.sql);
+      return query.info;
+    case 'queryStep':
+      return running().step(call.ms);
+    case 'queryStop':
+      return running().stop();
+    case 'queryRows':
+      return running().page(call.start, call.count);
+    case 'queryCopy':
+      return running().copy(call.range);
+    case 'queryCell':
+      return running().cell(call.row, call.column);
   }
 }
 
@@ -69,6 +86,13 @@ function connection(): DatabaseSync {
     throw new Error('The database is not open');
   }
   return db;
+}
+
+function running(): QueryRun {
+  if (!query) {
+    throw new Error('No query has run');
+  }
+  return query;
 }
 
 function reader(name: string): TableReader {

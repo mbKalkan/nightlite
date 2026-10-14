@@ -117,3 +117,23 @@ test("a table's schema", async ({ page }) => {
   await settle(page);
   await page.screenshot({ path: `${OUT}/schema-dark.png` });
 });
+
+test('a query and its rows', async ({ page }) => {
+  const viewer = await openViewer(page, 'dark');
+  await viewer.load('sample.sqlite');
+  await open(page, 'query');
+  const editor = page.getByRole('textbox', { name: 'SQL statement' });
+  await editor.fill(
+    [
+      'SELECT artists.name AS artist, artists.country, albums.title, albums.released,',
+      '       albums.price, albums.rating',
+      'FROM albums JOIN artists ON artists.id = albums.artist_id',
+      'ORDER BY albums.released;',
+    ].join('\n'),
+  );
+  await editor.press('Control+Enter');
+  await expect(page.locator('.nl-query-status')).toHaveText(/^5 rows/);
+  await page.locator('.nl-grid').focus();
+  await settle(page);
+  await page.screenshot({ path: `${OUT}/query-dark.png` });
+});

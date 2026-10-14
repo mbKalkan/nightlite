@@ -15,6 +15,8 @@ export interface ViewState {
   tile?: TileKey;
   scheme?: RowScheme;
   hiddenLayers?: string[];
+  /** The statement on the query page. */
+  sql?: string;
 }
 
 interface VsCodeApi {

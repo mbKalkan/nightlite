@@ -140,6 +140,11 @@
         "category": "%category%"
       },
       {
+        "command": "nightlite.openQuery",
+        "title": "%command.openQuery%",
+        "category": "%category%"
+      },
+      {
         "command": "nightlite.copy",
         "title": "%command.copy%",
         "category": "%category%"
@@ -154,6 +159,10 @@
       "commandPalette": [
         {
           "command": "nightlite.goToTable",
+          "when": "activeCustomEditorId == nightlite.viewer"
+        },
+        {
+          "command": "nightlite.openQuery",
           "when": "activeCustomEditorId == nightlite.viewer"
         },
         {

@@ -7,6 +7,9 @@ export const DETAIL_TEXT = 1024 * 1024;
 export const DETAIL_BYTES = 4096;
 /** BLOBs the cell detail shows as what they hold: images up to 16 MB, text up to DETAIL_TEXT. */
 export const IMAGE_PREVIEW = 16 * 1024 * 1024;
+/** A query's results hold this many rows, or about this many bytes of values (D-021). */
+export const QUERY_ROWS = 100_000;
+export const QUERY_MEMORY = 256 * 1024 * 1024;
 
 /** Image formats a webview shows, by their first bytes. */
 export function imageKind(bytes: Uint8Array): 'png' | 'jpeg' | 'webp' | 'gif' | undefined {
