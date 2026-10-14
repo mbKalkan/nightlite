@@ -116,5 +116,9 @@
   "automatic, for {0}": "otomatik, {0} için",
   "partial": "kısmi",
   "The columns and indexes couldn't be read": "Sütunlar ve dizinler okunamadı",
-  "Reopen With…": "Başka Düzenleyiciyle Aç…"
+  "Reopen With…": "Başka Düzenleyiciyle Aç…",
+  "Rows": "Satır",
+  "Counting rows…": "Satırlar sayılıyor…",
+  "Some tables couldn't be counted.": "Bazı tablolar sayılamadı.",
+  "and {0} more": "ve {0} tane daha"
 }

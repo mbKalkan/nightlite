@@ -6,6 +6,7 @@ import type {
   ObjectDetails,
   ObjectInfo,
   RowPage,
+  TableSummary,
   WebviewToHostMessage,
   ZoomRange,
 } from '../shared/protocol';
@@ -21,6 +22,11 @@ export interface DatabaseBackend {
   copy(name: string, range: CopyRange): Promise<CopiedText>;
   cell(name: string, row: number, total: number, column: number, rowid?: string): Promise<FullCell>;
   objectDetails(name: string): Promise<ObjectDetails>;
+  /** Slow on big databases; dropped when another count starts. */
+  tableSummaries(
+    names: string[],
+    onSummary: (name: string, summary: TableSummary | null) => void,
+  ): Promise<void>;
   mbtiles(): Promise<MbtilesSummary>;
   /** Slow on big tilesets; dropped when another count starts. */
   zoomCounts(
@@ -95,6 +101,20 @@ export async function answer(
         await post({ type: 'mbtilesError', ...classifyDatabaseError(error) });
       }
       return;
+    case 'tableSummaries': {
+      let complete = false;
+      try {
+        await backend.tableSummaries(
+          message.names,
+          (name, summary) => void post({ type: 'tableSummary', name, summary }),
+        );
+        complete = true;
+      } catch {
+        // Stopped for another count; the tables counted so far stay.
+      }
+      await post({ type: 'tableSummariesEnd', complete });
+      return;
+    }
     case 'zoomCounts': {
       let complete = false;
       try {

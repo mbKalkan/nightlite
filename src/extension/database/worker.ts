@@ -34,6 +34,10 @@ function handle(call: WorkerCall): unknown {
       return reader(call.name).cell(call.row, call.total, call.column, call.rowid);
     case 'objectDetails':
       return readDetails(connection(), call.name);
+    case 'tableSummary': {
+      const table = reader(call.name);
+      return { rows: table.count(), columns: table.info.columns.length };
+    }
     case 'mbtiles':
       return readMbtiles(connection());
     case 'zoomRange':

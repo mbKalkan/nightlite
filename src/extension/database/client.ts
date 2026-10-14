@@ -7,6 +7,7 @@ import type {
   ObjectInfo,
   RowPage,
   SchemaObject,
+  TableSummary,
   ZoomRange,
 } from '../../shared/protocol';
 import type { WorkerCall, WorkerFailure, WorkerResponse } from './messages';
@@ -72,6 +73,10 @@ export class DatabaseClient {
 
   objectDetails(name: string): Promise<ObjectDetails> {
     return this.call({ type: 'objectDetails', name }) as Promise<ObjectDetails>;
+  }
+
+  tableSummary(name: string): Promise<TableSummary> {
+    return this.call({ type: 'tableSummary', name }) as Promise<TableSummary>;
   }
 
   mbtiles(): Promise<MbtilesSummary> {

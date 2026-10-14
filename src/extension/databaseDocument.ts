@@ -8,9 +8,10 @@ import type {
   ObjectInfo,
   RowPage,
   SchemaObject,
+  TableSummary,
   ZoomRange,
 } from '../shared/protocol';
-import { DatabaseClient } from './database/client';
+import { DatabaseClient, DatabaseFailure } from './database/client';
 import type { CopiedText } from './database/rows';
 import { connectionTarget } from './database/target';
 import { zoomLevels } from '../shared/mbtiles';
@@ -27,7 +28,7 @@ export class DatabaseDocument implements vscode.CustomDocument, DatabaseBackend 
   private reader: Promise<DatabaseClient> | undefined;
   private readerClient: DatabaseClient | undefined;
   private background: { client: DatabaseClient; key: string; job: Promise<unknown> } | undefined;
-  private zoomJobs = 0;
+  private backgroundJobs = 0;
   /** Counts resets: answers worked out before one are about the file as it was. */
   generation = 0;
   private readonly resetListeners = new Set<() => void>();
@@ -84,6 +85,29 @@ export class DatabaseDocument implements vscode.CustomDocument, DatabaseBackend 
     return (await this.open()).objectDetails(name);
   }
 
+  /**
+   * Counts each table's rows in the background, one after another, for the overview. A table
+   * SQLite can't count is reported as null; the counts also serve the tables when opened.
+   */
+  tableSummaries(
+    names: string[],
+    onSummary: (name: string, summary: TableSummary | null) => void,
+  ): Promise<void> {
+    return this.inBackground(`tables:${++this.backgroundJobs}`, async (client) => {
+      for (const name of names) {
+        let summary: TableSummary | null = null;
+        try {
+          summary = await client.tableSummary(name);
+          this.counts.set(name, Promise.resolve(summary.rows));
+        } catch (error) {
+          // Only SQLite's own errors are about the table; others mean the job was stopped.
+          if (!(error instanceof DatabaseFailure)) throw error;
+        }
+        onSummary(name, summary);
+      }
+    });
+  }
+
   async mbtiles(): Promise<MbtilesSummary> {
     return (await this.open()).mbtiles();
   }
@@ -95,7 +119,7 @@ export class DatabaseDocument implements vscode.CustomDocument, DatabaseBackend 
     onCount: (zoom: number, count: number) => void,
   ): Promise<void> {
     // Each request starts over, so a reopened view hears every level it asks for.
-    return this.inBackground(`zooms:${++this.zoomJobs}`, async (client) => {
+    return this.inBackground(`zooms:${++this.backgroundJobs}`, async (client) => {
       const range = await client.zoomRange();
       onRange(range);
       if (!range) return;
