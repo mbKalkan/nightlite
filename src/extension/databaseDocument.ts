@@ -144,6 +144,10 @@ export class DatabaseDocument implements vscode.CustomDocument, DatabaseBackend 
     return (await this.open()).tile(key);
   }
 
+  async storedTile(key: TileKey): Promise<Uint8Array | null> {
+    return (await this.open()).storedTile(key);
+  }
+
   /**
    * The file changed on disk: drops the connections and everything read through them, so the
    * next question opens the file afresh, and tells the editors to load it again.

@@ -73,6 +73,8 @@ tileset opens at once.
 - Point at a feature to see its attributes with their types, 64-bit integers to the last digit;
   click to keep them in view, or step through the features with <kbd>[</kbd> and <kbd>]</kbd>
 - Raster tiles (PNG, JPEG, WebP) shown as images, and every tile's size, stored and uncompressed
+- **Save Tile…** writes the tile shown to a file you pick: images as they are, vector tiles as
+  plain `.pbf`, or gzip-compressed when the name ends in `.gz`
 - Arrow keys move to the neighboring tiles, <kbd>+</kbd> and <kbd>−</kbd> between zoom levels;
   rows numbered as in tile URLs (XYZ) or as MBTiles stores them (TMS)
 

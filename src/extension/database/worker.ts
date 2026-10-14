@@ -8,7 +8,7 @@ import type { WorkerCall, WorkerRequest, WorkerResponse } from './messages';
 import { TableReader } from './rows';
 import { readSchema } from './schema';
 import { READ_OPTIONS } from './target';
-import { TileLister, readTile } from './tiles';
+import { TileLister, readStoredTile, readTile } from './tiles';
 
 let db: DatabaseSync | undefined;
 const readers = new Map<string, TableReader>();
@@ -53,6 +53,8 @@ function handle(call: WorkerCall): unknown {
       return lister(call.zoom).locate(call.column, call.row, call.total);
     case 'tile':
       return readTile(connection(), call.zoom, call.column, call.row);
+    case 'storedTile':
+      return readStoredTile(connection(), call.zoom, call.column, call.row);
   }
 }
 

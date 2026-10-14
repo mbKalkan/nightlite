@@ -1,7 +1,12 @@
 import { DatabaseSync } from 'node:sqlite';
 import { deflateSync, gzipSync } from 'node:zlib';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { TILE_LIMIT, TileLister, readTile } from '../../src/extension/database/tiles';
+import {
+  TILE_LIMIT,
+  TileLister,
+  readStoredTile,
+  readTile,
+} from '../../src/extension/database/tiles';
 
 const ZOOM = 10;
 
@@ -177,5 +182,13 @@ describe('readTile', () => {
 
   it('answers null where there is no tile', () => {
     expect(readTile(db, 0, 9, 9)).toBeNull();
+  });
+
+  it('reads a tile as stored, whole, for saving', () => {
+    expect(readStoredTile(db, 0, 0, 0)).toEqual(new Uint8Array(gzipSync(vector)));
+    expect(readStoredTile(db, 0, 3, 0)).toEqual(new Uint8Array());
+    expect(readStoredTile(db, 0, 5, 0)).toEqual(new TextEncoder().encode('text'));
+    expect(readStoredTile(db, 0, 6, 0)).toHaveLength(TILE_LIMIT + 1);
+    expect(readStoredTile(db, 0, 9, 9)).toBeNull();
   });
 });

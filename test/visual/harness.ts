@@ -7,8 +7,9 @@ import { readMbtiles, zoomCount, zoomRange } from '../../src/extension/database/
 import { TableReader } from '../../src/extension/database/rows';
 import { readSchema } from '../../src/extension/database/schema';
 import { READ_OPTIONS, connectionTarget } from '../../src/extension/database/target';
-import { TileLister, readTile } from '../../src/extension/database/tiles';
+import { TileLister, readStoredTile, readTile } from '../../src/extension/database/tiles';
 import { readFileHeader } from '../../src/extension/fileHeader';
+import { tileBytes } from '../../src/extension/tileFile';
 import { answer } from '../../src/extension/requests';
 import { viewerStrings } from '../../src/extension/strings';
 import { buildWebviewHtml } from '../../src/extension/webviewHtml';
@@ -56,6 +57,7 @@ export interface HostOptions {
 export async function openViewer(page: Page, theme: ThemeName) {
   const problems: string[] = [];
   const clipboard: string[] = [];
+  const saved: { name: string; bytes: Uint8Array }[] = [];
   let database:
     | {
         db: DatabaseSync;
@@ -140,10 +142,17 @@ export async function openViewer(page: Page, theme: ThemeName) {
         tilePage: async (zoom, start, count, total) => lister(zoom).page(start, count, total),
         locateTile: async (key, total) => lister(key.zoom).locate(key.column, key.row, total),
         tile: async (key) => readTile(connection(), key.zoom, key.column, key.row),
+        storedTile: async (key) => readStoredTile(connection(), key.zoom, key.column, key.row),
       },
       post,
-      async (text) => {
-        clipboard.push(text);
+      {
+        writeClipboard: async (text) => {
+          clipboard.push(text);
+        },
+        // As if the user took the name offered.
+        saveTile: async (name, stored) => {
+          saved.push({ name, bytes: tileBytes(stored, name) });
+        },
       },
     ),
   );
@@ -227,6 +236,8 @@ export async function openViewer(page: Page, theme: ThemeName) {
     problems,
     /** What the stand-in host wrote to the clipboard, latest last. */
     clipboard,
+    /** Tiles saved, with the name offered and the bytes written. */
+    saved,
     /** Delivers a message as if it came from the extension host. */
     async post(message: HostToWebviewMessage) {
       await post(message);

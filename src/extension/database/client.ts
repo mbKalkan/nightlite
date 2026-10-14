@@ -106,6 +106,10 @@ export class DatabaseClient {
     return this.call({ type: 'tile', ...key }) as Promise<TileContent | null>;
   }
 
+  storedTile(key: TileKey): Promise<Uint8Array | null> {
+    return this.call({ type: 'storedTile', ...key }) as Promise<Uint8Array | null>;
+  }
+
   dispose(): void {
     const worker = this.worker;
     this.worker = undefined;

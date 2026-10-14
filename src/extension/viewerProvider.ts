@@ -7,6 +7,7 @@ import { readFileHeader } from './fileHeader';
 import { watchDatabase } from './fileWatcher';
 import { pickObject } from './objectPicker';
 import { answer } from './requests';
+import { saveTile } from './saveTile';
 import { viewerStrings } from './strings';
 import { buildWebviewHtml } from './webviewHtml';
 
@@ -65,7 +66,10 @@ export class ViewerProvider implements vscode.CustomReadonlyEditorProvider<Datab
           const generation = document.generation;
           const current = (reply: HostToWebviewMessage) =>
             document.generation === generation ? post(reply) : Promise.resolve(false);
-          void answer(message, document, current, (text) => vscode.env.clipboard.writeText(text));
+          void answer(message, document, current, {
+            writeClipboard: (text) => vscode.env.clipboard.writeText(text),
+            saveTile: (name, stored) => saveTile(document.uri, name, stored),
+          });
         }
       }),
       document.onReset(() => void this.load(document, post)),

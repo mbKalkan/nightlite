@@ -165,5 +165,12 @@
   "Features": "Nesneler",
   "Point at a feature to see its attributes, and click to keep them. [ and ] step through the features.": "Özniteliklerini görmek için bir nesnenin üzerine gelin, tutmak için tıklayın. [ ve ] nesneler arasında gezinir.",
   "id {0}": "id {0}",
-  "No attributes": "Özniteliği yok"
+  "No attributes": "Özniteliği yok",
+  "Save Tile…": "Karoyu Kaydet…",
+  "Save Tile": "Karoyu Kaydet",
+  "Vector tiles": "Vektör karolar",
+  "Gzip-compressed vector tiles": "Gzip ile sıkıştırılmış vektör karolar",
+  "Images": "Resimler",
+  "Saved {0}": "{0} kaydedildi",
+  "The tile couldn't be saved: {0}": "Karo kaydedilemedi: {0}"
 }

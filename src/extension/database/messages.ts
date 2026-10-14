@@ -17,7 +17,8 @@ export type WorkerCall =
   | { type: 'zoomCount'; zoom: number }
   | { type: 'tilePage'; zoom: number; start: number; count: number; total: number }
   | { type: 'locateTile'; zoom: number; column: number; row: number; total: number }
-  | { type: 'tile'; zoom: number; column: number; row: number };
+  | { type: 'tile'; zoom: number; column: number; row: number }
+  | { type: 'storedTile'; zoom: number; column: number; row: number };
 
 export type WorkerRequest = WorkerCall & { id: number };
 
