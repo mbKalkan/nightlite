@@ -6,8 +6,9 @@ import { readDetails } from './details';
 import { readMbtiles, readMetadataRows, zoomCount, zoomRange } from './mbtiles';
 import { writeMetadata } from './metadataWrite';
 import type { WorkerCall, WorkerRequest, WorkerResponse } from './messages';
-import { QueryRun } from './query';
+import { QueryRun, type ResultRows } from './query';
 import { TableReader } from './rows';
+import { viewRows } from './sortedRows';
 import { readSchema } from './schema';
 import { READ_OPTIONS } from './target';
 import { TileLister, readStoredTile, readTile } from './tiles';
@@ -15,7 +16,8 @@ import { TileLister, readStoredTile, readTile } from './tiles';
 let db: DatabaseSync | undefined;
 const readers = new Map<string, TableReader>();
 const listers = new Map<number, TileLister>();
-let query: QueryRun | undefined;
+/** The query or table view this worker was started for, with its rows. */
+let query: ResultRows | undefined;
 
 function handle(call: WorkerCall): unknown {
   switch (call.type) {
@@ -68,6 +70,12 @@ function handle(call: WorkerCall): unknown {
       connection().exec('PRAGMA query_only = ON');
       query = new QueryRun(connection(), call.sql);
       return query.info;
+    case 'viewStart':
+      // A sort needs room: SQLite sorts in memory up to the page cache, then in temporary files
+      // (never beside the database). With the default 2 MB, 10 M rows took 108 s; with 128 MB, 11 s.
+      connection().exec('PRAGMA query_only = ON; PRAGMA cache_size = -131072; PRAGMA threads = 4');
+      query = viewRows(connection(), reader(call.name), call.view);
+      return query.info;
     case 'queryStep':
       return running().step(call.ms);
     case 'queryStop':
@@ -88,7 +96,7 @@ function connection(): DatabaseSync {
   return db;
 }
 
-function running(): QueryRun {
+function running(): ResultRows {
   if (!query) {
     throw new Error('No query has run');
   }

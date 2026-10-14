@@ -43,6 +43,10 @@ tileset opens at once.
   (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd>) finds one as you type
 - A grid that scrolls through millions of rows and jumps anywhere at once, with rowids, column
   types and primary keys in view
+- Sort by any column from its header or the context menu, search every column for some text
+  (<kbd>Ctrl</kbd>+<kbd>F</kbd>), and filter column by column: `blue`, `>9`, `=Ankara`,
+  `<>0`, `=NULL`. Sorting ten million rows takes seconds, and every one of them is then a
+  click away
 - Select cells as in a spreadsheet, with the mouse or the keyboard; the status bar shows the
   selected cell's storage class and value
 - <kbd>Ctrl</kbd>+<kbd>C</kbd> copies the selection with full values, even where the grid cuts them

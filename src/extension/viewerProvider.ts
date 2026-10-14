@@ -7,7 +7,7 @@ import { readFileHeader } from './fileHeader';
 import { saveErrorMessage } from './saveErrors';
 import { watchDatabase } from './fileWatcher';
 import { pickObject } from './objectPicker';
-import { QuerySession } from './querySession';
+import { EditorSessions } from './querySession';
 import { answer } from './requests';
 import { saveTile } from './saveTile';
 import { viewerStrings } from './strings';
@@ -44,6 +44,13 @@ export class ViewerProvider implements vscode.CustomEditorProvider<DatabaseDocum
       vscode.commands.registerCommand('nightlite.goToTable', () => provider.goToObject()),
       vscode.commands.registerCommand('nightlite.openQuery', () => provider.openQuery()),
       vscode.commands.registerCommand('nightlite.copy', () => provider.copySelection(false)),
+      vscode.commands.registerCommand('nightlite.sortAscending', () =>
+        provider.sortRows('ascending'),
+      ),
+      vscode.commands.registerCommand('nightlite.sortDescending', () =>
+        provider.sortRows('descending'),
+      ),
+      vscode.commands.registerCommand('nightlite.clearSort', () => provider.sortRows(null)),
       vscode.commands.registerCommand('nightlite.copyAsMarkdown', () =>
         provider.copySelection(true),
       ),
@@ -142,7 +149,7 @@ export class ViewerProvider implements vscode.CustomEditorProvider<DatabaseDocum
     const editor: Editor = { panel, document };
     const post = (message: HostToWebviewMessage) => panel.webview.postMessage(message);
     // A query's results hold whatever the file changes to since, so they're posted regardless.
-    const queries = new QuerySession(
+    const queries = new EditorSessions(
       () => document.queryConnection(),
       post,
       (text) => vscode.env.clipboard.writeText(text),
@@ -250,6 +257,14 @@ export class ViewerProvider implements vscode.CustomEditorProvider<DatabaseDocum
   private openQuery(): void {
     void this.active?.panel.webview.postMessage({
       type: 'openQuery',
+    } satisfies HostToWebviewMessage);
+  }
+
+  /** Sorts the rows in view by the active cell's column, or as stored. */
+  private sortRows(direction: 'ascending' | 'descending' | null): void {
+    void this.active?.panel.webview.postMessage({
+      type: 'sortRows',
+      direction,
     } satisfies HostToWebviewMessage);
   }
 

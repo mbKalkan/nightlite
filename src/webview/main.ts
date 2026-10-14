@@ -33,6 +33,14 @@ const shell = new Shell(
       state.sql = sql;
       vscode.setState(state);
     },
+    onViews: (views) => {
+      state.views = views;
+      vscode.setState(state);
+    },
+    onFilterRow: (open) => {
+      state.filterRow = open;
+      vscode.setState(state);
+    },
     send: (message) => vscode.postMessage(message),
   },
   {
@@ -45,6 +53,8 @@ const shell = new Shell(
       hidden: new Set(state.hiddenLayers ?? []),
     },
     sql: state.sql,
+    views: state.views,
+    filterRow: state.filterRow,
   },
 );
 let loaded = false;
@@ -81,6 +91,9 @@ window.addEventListener('message', (event: MessageEvent<HostToWebviewMessage>) =
       break;
     case 'openQuery':
       shell.openQuery();
+      break;
+    case 'sortRows':
+      shell.sortRows(message.direction);
       break;
     case 'objectInfo':
     case 'rowCount':

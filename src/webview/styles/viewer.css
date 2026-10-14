@@ -764,13 +764,63 @@ body.vscode-high-contrast .nl-sql-keyword {
   outline-offset: -1px;
 }
 
-.nl-detail-toggle {
+.nl-detail-toggle,
+.nl-filter-toggle {
   margin-left: 4px;
 }
 
 /* Without the tabs, as on the query page, the toggle keeps to the right on its own. */
-.nl-tabs[hidden] + .nl-detail-toggle {
+.nl-tabs[hidden] + .nl-filter-toggle[hidden] + .nl-detail-toggle {
   margin-left: auto;
+}
+
+/* Rows with some text in any column (D-022): a search box as VS Code draws its own. */
+.nl-search {
+  display: flex;
+  flex: 0 1 220px;
+  gap: 4px;
+  align-items: center;
+  min-width: 90px;
+  height: 24px;
+  margin-left: auto;
+  padding: 0 6px;
+  box-sizing: border-box;
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 2px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+}
+
+.nl-search[hidden] {
+  display: none;
+}
+
+.nl-search:focus-within {
+  border-color: var(--vscode-focusBorder);
+}
+
+.nl-search svg {
+  flex: none;
+  opacity: 0.7;
+}
+
+.nl-search-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  outline: none;
+}
+
+.nl-search-input::placeholder {
+  color: var(--vscode-input-placeholderForeground);
+}
+
+.nl-search:not([hidden]) + .nl-tabs {
+  margin-left: 0;
 }
 
 .nl-invisible {
@@ -816,14 +866,97 @@ body.vscode-high-contrast .nl-grid {
   overflow: clip;
 }
 
-.nl-grid-header {
+/* The header: column names, and the column filters under them when shown. */
+.nl-grid-top {
   position: sticky;
   top: 0;
   z-index: 2;
-  display: flex;
-  height: 26px;
   border-bottom: 1px solid var(--nl-border);
   background: var(--vscode-editor-background);
+}
+
+.nl-grid-header {
+  display: flex;
+  height: 26px;
+}
+
+.nl-grid-filters {
+  display: flex;
+  height: 27px;
+  border-top: 1px solid var(--nl-grid-line);
+}
+
+.nl-grid-filters[hidden] {
+  display: none;
+}
+
+.nl-grid-filter-corner {
+  z-index: 3;
+}
+
+.nl-grid-filter-cell {
+  padding: 3px 4px;
+  line-height: normal;
+}
+
+.nl-grid-filter {
+  width: 100%;
+  height: 20px;
+  box-sizing: border-box;
+  padding: 0 4px;
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 2px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  font-family: var(--vscode-font-family);
+  font-size: 12px;
+  outline: none;
+}
+
+.nl-grid-filter:focus {
+  border-color: var(--vscode-focusBorder);
+}
+
+.nl-grid-filter::placeholder {
+  color: var(--vscode-input-placeholderForeground);
+}
+
+/* A column's sort button: on hover, and always while the rows are sorted by it. */
+.nl-grid-sort {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--vscode-descriptionForeground);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.nl-grid-sort svg {
+  width: 14px;
+  height: 14px;
+}
+
+.nl-grid-head:hover .nl-grid-sort,
+.nl-grid-sort[data-sort='ascending'],
+.nl-grid-sort[data-sort='descending'] {
+  opacity: 1;
+}
+
+.nl-grid-sort[data-sort='ascending'],
+.nl-grid-sort[data-sort='descending'] {
+  color: var(--vscode-foreground);
+}
+
+.nl-grid-sort:hover {
+  background: var(--vscode-toolbar-hoverBackground);
 }
 
 .nl-grid-rows {
@@ -967,9 +1100,36 @@ body.vscode-high-contrast .nl-grid {
 }
 
 .nl-data-main {
+  position: relative;
   display: flex;
   flex: 1;
   min-height: 0;
+}
+
+.nl-progress[hidden] {
+  display: none;
+}
+
+/* Stop, while the rows are sorted or filtered. */
+.nl-footer-button {
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--vscode-textLink-foreground);
+  font: inherit;
+  cursor: pointer;
+}
+
+.nl-footer-button[hidden] {
+  display: none;
+}
+
+.nl-footer-button:hover {
+  text-decoration: underline;
+}
+
+.nl-footer-button:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
 }
 
 /* Cell detail: the selected cell in full, beside the rows. */

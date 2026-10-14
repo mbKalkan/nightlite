@@ -118,9 +118,30 @@ export class TableReader {
     this.info = { name, columns, hasRowid, estimate };
   }
 
+  /** `FROM` and the table, for statements of its own about this table. */
+  get source(): string {
+    return this.from;
+  }
+
   count(): number {
     const row = this.db.prepare(`SELECT count(*) AS n ${this.from}`).get() as { n: number };
     return row.n;
+  }
+
+  /** Rows by their rowids, in the order given: a page of the rows sorted or filtered. */
+  rowsByRowid(rowids: bigint[], start: number): RowPage {
+    const raw = this.byRowid(`${this.select}`, rowids);
+    return { ...this.encodeRows(raw), start, end: false };
+  }
+
+  /**
+   * Columns `first` to `last` of rows by their rowids, in the order given, as `copy` reads them:
+   * each value as its storage class, value and full length.
+   */
+  valuesByRowid(rowids: bigint[], first: number, last: number): unknown[][] {
+    const columns = this.info.columns.slice(first, last + 1);
+    const select = `SELECT rowid, ${valueList(columns, COPY_LIMIT, COPY_LIMIT / 2)}`;
+    return this.byRowid(select, rowids).map((row) => row.slice(1));
   }
 
   /** `total` is the row count the grid works with: exact once counted, else the estimate. */
@@ -293,17 +314,19 @@ export class TableReader {
     count: number,
     backwards = false,
   ): RowPage {
-    let statement = this.statements.get(sql);
-    if (!statement) {
-      statement = this.db.prepare(sql);
-      statement.setReadBigInts(true);
-      statement.setReturnArrays(true);
-      this.statements.set(sql, statement);
-    }
-    const raw = statement.all(...params) as unknown as unknown[][];
+    const raw = this.prepared(sql).all(...params) as unknown as unknown[][];
     if (backwards) {
       raw.reverse();
     }
+    if (this.info.hasRowid && raw.length > 0) {
+      this.remember({ position: start, rowid: raw[0][0] as bigint });
+      this.remember({ position: start + raw.length - 1, rowid: raw[raw.length - 1][0] as bigint });
+    }
+    return { ...this.encodeRows(raw), start, end: !backwards && raw.length < count };
+  }
+
+  /** Rows as the grid gets them, from `select`'s rowid (for rowid tables) and value triples. */
+  private encodeRows(raw: unknown[][]): Pick<RowPage, 'rows' | 'types' | 'rowids'> {
     const offset = this.info.hasRowid ? 1 : 0;
     const rows: CellValue[][] = [];
     const types: string[] = [];
@@ -320,11 +343,34 @@ export class TableReader {
       types.push(kinds);
       rowids?.push(String(row[0]));
     }
-    if (this.info.hasRowid && raw.length > 0) {
-      this.remember({ position: start, rowid: raw[0][0] as bigint });
-      this.remember({ position: start + raw.length - 1, rowid: raw[raw.length - 1][0] as bigint });
+    return { rows, types, rowids };
+  }
+
+  /** Rows of `select` (which starts with the rowid) by rowid, in the order of `rowids`. */
+  private byRowid(select: string, rowids: bigint[]): unknown[][] {
+    if (rowids.length === 0) return [];
+    // One statement for any number of rowids; SQLite reads 64-bit integers in JSON exactly.
+    const found = this.prepared(
+      `${select} ${this.from} WHERE rowid IN (SELECT value FROM json_each(?))`,
+    ).all(`[${rowids.join(',')}]`) as unknown as unknown[][];
+    const byId = new Map(found.map((row) => [row[0] as bigint, row]));
+    const rows: unknown[][] = [];
+    for (const rowid of rowids) {
+      const row = byId.get(rowid);
+      if (row) rows.push(row);
     }
-    return { start, rows, types, rowids, end: !backwards && raw.length < count };
+    return rows;
+  }
+
+  private prepared(sql: string): StatementSync {
+    let statement = this.statements.get(sql);
+    if (!statement) {
+      statement = this.db.prepare(sql);
+      statement.setReadBigInts(true);
+      statement.setReturnArrays(true);
+      this.statements.set(sql, statement);
+    }
+    return statement;
   }
 
   private remember(anchor: Anchor): void {

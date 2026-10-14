@@ -1,4 +1,4 @@
-import type { DatabaseSync } from 'node:sqlite';
+import type { DatabaseSync, SQLInputValue } from 'node:sqlite';
 import type { CellValue, CopyRange, FullCell, ObjectInfo, RowPage } from '../../shared/protocol';
 import { checkQuery, type QueryCheck } from '../../shared/sqlCheck';
 import {
@@ -34,6 +34,22 @@ export interface QueryProgress {
   end: 'done' | 'limit' | null;
 }
 
+/**
+ * Rows worked out in a worker of their own and kept there, read in steps so they can be stopped:
+ * a query's results, or a table's rows sorted or filtered.
+ */
+export interface ResultRows {
+  readonly info: ObjectInfo;
+  readonly progress: QueryProgress;
+  /** Reads rows for about `ms` milliseconds, or until there are no more or results are full. */
+  step(ms: number): QueryProgress;
+  /** Stops reading, keeping the rows read so far. */
+  stop(): QueryProgress;
+  page(start: number, count: number): RowPage;
+  copy(range: CopyRange): CopiedText;
+  cell(row: number, column: number): FullCell;
+}
+
 /** Bytes a value counts for besides its text or bytes, roughly what keeping it takes. */
 const VALUE_COST = 16;
 
@@ -43,7 +59,7 @@ const VALUE_COST = 16;
  * and shows them in full without running the statement again. Reading stops at QUERY_ROWS rows
  * or QUERY_MEMORY bytes kept.
  */
-export class QueryRun {
+export class QueryRun implements ResultRows {
   readonly info: ObjectInfo;
   /** Each kept cell as three items: storage class, value, full length. */
   private readonly cells: unknown[] = [];
@@ -52,13 +68,14 @@ export class QueryRun {
   private iterator: Iterator<unknown[]> | undefined;
   private ended: QueryProgress['end'] = null;
 
-  constructor(db: DatabaseSync, sql: string) {
+  /** `info` names the columns for a table's rows; a query's are named by SQLite. */
+  constructor(db: DatabaseSync, sql: string, params: SQLInputValue[] = [], info?: ObjectInfo) {
     const check = checkQuery(sql);
     if (!check.ok) throw new QueryRefused(check.reason);
     const statement = db.prepare(sql);
     statement.setReadBigInts(true);
     statement.setReturnArrays(true);
-    this.info = {
+    this.info = info ?? {
       name: '',
       columns: statement.columns().map((column) => ({
         name: column.name,
@@ -71,7 +88,9 @@ export class QueryRun {
       hasRowid: false,
       estimate: null,
     };
-    this.iterator = (statement.iterate() as IterableIterator<unknown[]>)[Symbol.iterator]();
+    this.iterator = (statement.iterate(...params) as IterableIterator<unknown[]>)[
+      Symbol.iterator
+    ]();
   }
 
   get progress(): QueryProgress {

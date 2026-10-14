@@ -7,5 +7,8 @@
   "command.goToTable": "Tabloya Git…",
   "command.openQuery": "SQL Sorgusunu Aç",
   "command.copy": "Kopyala",
-  "command.copyAsMarkdown": "Markdown Tablosu Olarak Kopyala"
+  "command.copyAsMarkdown": "Markdown Tablosu Olarak Kopyala",
+  "command.sortAscending": "Artan Sırala",
+  "command.sortDescending": "Azalan Sırala",
+  "command.clearSort": "Sıralamayı Kaldır"
 }

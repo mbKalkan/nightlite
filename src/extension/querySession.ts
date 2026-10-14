@@ -1,4 +1,4 @@
-import type { HostToWebviewMessage, WebviewToHostMessage } from '../shared/protocol';
+import type { HostToWebviewMessage, ObjectInfo, WebviewToHostMessage } from '../shared/protocol';
 import { checkQuery } from '../shared/sqlCheck';
 import type { DatabaseClient } from './database/client';
 import type { QueryProgress } from './database/query';
@@ -7,7 +7,14 @@ import { classifyDatabaseError } from './databaseErrors';
 /** What a query needs from its worker: `DatabaseClient`'s query calls. */
 export type QueryConnection = Pick<
   DatabaseClient,
-  'queryStart' | 'queryStep' | 'queryStop' | 'queryRows' | 'queryCopy' | 'queryCell' | 'dispose'
+  | 'queryStart'
+  | 'viewStart'
+  | 'queryStep'
+  | 'queryStop'
+  | 'queryRows'
+  | 'queryCopy'
+  | 'queryCell'
+  | 'dispose'
 >;
 
 /** Opens the database for one query, on a connection of its own. */
@@ -20,12 +27,13 @@ type ResultsMessage = Extract<WebviewToHostMessage, { type: 'rows' | 'copy' | 'c
 
 /** The query page's messages, and the grid's for a query's results. */
 export type QueryMessage =
-  Extract<WebviewToHostMessage, { type: 'runQuery' | 'stopQuery' }> | ResultsMessage;
+  Extract<WebviewToHostMessage, { type: 'runQuery' | 'runView' | 'stopQuery' }> | ResultsMessage;
 
 /** Whether a message is for the query page's session rather than the document. */
 export function isQueryMessage(message: WebviewToHostMessage): message is QueryMessage {
   switch (message.type) {
     case 'runQuery':
+    case 'runView':
     case 'stopQuery':
       return true;
     case 'rows':
@@ -55,9 +63,9 @@ interface Run {
 }
 
 /**
- * The query page of one editor: one statement at a time, each on a worker of its own, so a
- * slow one never holds up the table views, and stopping it can end its worker (D-021). The
- * rows stay with that worker for the grid until the next statement runs.
+ * The query page of one editor, or its table views' sorting and filtering: one run at a time,
+ * each on a worker of its own, so a slow one never holds up the rest, and stopping it can end
+ * its worker (D-021, D-022). The rows stay with that worker for the grid until the next run.
  */
 export class QuerySession {
   private current: Run | undefined;
@@ -70,8 +78,25 @@ export class QuerySession {
 
   async answer(message: QueryMessage): Promise<void> {
     switch (message.type) {
-      case 'runQuery':
-        return this.run(message.run, message.sql);
+      case 'runQuery': {
+        // Checked here too: the page checks before sending, the worker again before running.
+        const check = checkQuery(message.sql);
+        if (!check.ok) {
+          await this.post({
+            type: 'queryError',
+            run: message.run,
+            reason: check.reason,
+            detail: '',
+          });
+          return;
+        }
+        const { sql } = message;
+        return this.run(message.run, (connection) => connection.queryStart(sql));
+      }
+      case 'runView': {
+        const { name, view } = message;
+        return this.run(message.run, (connection) => connection.viewStart(name, view));
+      }
       case 'stopQuery':
         return this.stop(message.run);
       case 'rows':
@@ -85,21 +110,23 @@ export class QuerySession {
     this.end();
   }
 
-  private async run(run: number, sql: string): Promise<void> {
+  /** Whether `run` is this session's: the one running, or whose rows are shown. */
+  owns(run: number): boolean {
+    return this.current?.run === run;
+  }
+
+  private async run(
+    run: number,
+    start: (connection: QueryConnection) => Promise<ObjectInfo>,
+  ): Promise<void> {
     this.end();
-    // Checked here too: the page checks before sending, the worker again before running.
-    const check = checkQuery(sql);
-    if (!check.ok) {
-      await this.post({ type: 'queryError', run, reason: check.reason, detail: '' });
-      return;
-    }
     const began = performance.now();
     const { connection, opened } = this.connect();
     const current: Run = { run, connection, stopping: false, ended: false };
     this.current = current;
     try {
       await opened;
-      const info = await connection.queryStart(sql);
+      const info = await start(connection);
       let progress: QueryProgress = { rows: 0, end: null };
       let posted = performance.now();
       while (progress.end === null && !current.stopping) {
@@ -148,32 +175,33 @@ export class QuerySession {
   }
 
   private async results(message: ResultsMessage): Promise<void> {
-    const { request, query } = message;
+    // Answers name the grid that asked: the query page's, or a table's sorted or filtered.
+    const { request, query, name } = message;
     const connection = this.current?.run === query ? this.current.connection : undefined;
     try {
       if (!connection) throw new Error('These results are gone: another query ran since');
       switch (message.type) {
         case 'rows': {
           const page = await connection.queryRows(message.start, message.count);
-          await this.post({ type: 'rowPage', request, name: '', query, page });
+          await this.post({ type: 'rowPage', request, name, query, page });
           return;
         }
         case 'copy': {
           const { text, ...result } = await connection.queryCopy(message.range);
           await this.writeClipboard(text);
-          await this.post({ type: 'copied', request, name: '', query, result });
+          await this.post({ type: 'copied', request, name, query, result });
           return;
         }
         case 'cell': {
           const cell = await connection.queryCell(message.row, message.column);
-          await this.post({ type: 'cellValue', request, name: '', query, cell });
+          await this.post({ type: 'cellValue', request, name, query, cell });
           return;
         }
       }
     } catch (error) {
       await this.post({
         type: 'objectError',
-        name: '',
+        name,
         query,
         request,
         ...classifyDatabaseError(error),
@@ -188,5 +216,35 @@ export class QuerySession {
     current.ended = true;
     current.connection.dispose();
     this.current = undefined;
+  }
+}
+
+/**
+ * One editor's sessions: the query page's, and its table views' sorting and filtering, so that
+ * sorting a table never ends a query's results. Each message goes to the session it's for.
+ */
+export class EditorSessions {
+  readonly queries: QuerySession;
+  readonly views: QuerySession;
+
+  constructor(
+    connect: QueryConnector,
+    post: Post,
+    writeClipboard: (text: string) => Thenable<void> | Promise<void>,
+  ) {
+    this.queries = new QuerySession(connect, post, writeClipboard);
+    this.views = new QuerySession(connect, post, writeClipboard);
+  }
+
+  answer(message: QueryMessage): Promise<void> {
+    const run = 'query' in message ? message.query : message.run;
+    const toViews =
+      message.type === 'runView' || (message.type !== 'runQuery' && this.views.owns(run));
+    return (toViews ? this.views : this.queries).answer(message);
+  }
+
+  dispose(): void {
+    this.queries.dispose();
+    this.views.dispose();
   }
 }

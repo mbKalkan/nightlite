@@ -7,17 +7,25 @@ import type {
   ViewerStrings,
   WebviewToHostMessage,
 } from '../shared/protocol';
+import { PLAIN_VIEW, isFiltered, isPlain, type RowView } from '../shared/rowFilter';
 import { formatBytes, formatCount } from '../shared/units';
-import { COPY_LIMIT, COPY_ROWS, realText } from '../shared/values';
+import { COPY_LIMIT, COPY_ROWS, QUERY_ROWS, VIEW_ROWS, realText } from '../shared/values';
 import { CellDetail, type CellPlace } from './detail/cellDetail';
 import { hexBytes } from './detail/format';
 import { STORAGE_CLASSES, cellText } from './grid/cells';
 import { DataGrid, type CellRange, type GridPosition } from './grid/dataGrid';
+import { newRun } from './runs';
 import { databaseErrorMessage, element, format } from './views';
 
 export type DataMessage = Extract<
   HostToWebviewMessage,
   { type: 'objectInfo' | 'rowCount' | 'rowPage' | 'objectError' | 'copied' | 'cellValue' }
+>;
+
+/** How a run of the table's rows sorted or filtered is getting on, and how it ended. */
+export type RunMessage = Extract<
+  HostToWebviewMessage,
+  { type: 'queryProgress' | 'queryResult' | 'queryError' }
 >;
 
 export interface DataViewOptions {
@@ -34,6 +42,14 @@ export interface DataViewOptions {
   results?: { query: number; info: ObjectInfo; total: number };
   /** What the grid says when there are no rows. */
   empty?: string;
+  /** How a table's rows are sorted and filtered, as last left. */
+  view?: RowView;
+  /** Whether the row of column filters shows. */
+  filters?: boolean;
+  /** The rows were sorted or filtered otherwise. */
+  onView?(view: RowView): void;
+  /** Ctrl+F in the rows. */
+  onFind?(): void;
 }
 
 /** The status bar shows this much of a value; the cell detail shows the rest. */
@@ -44,6 +60,8 @@ const NOTE_TIME = 4000;
 const SLOW_COPY = 250;
 /** Values the panel asks the host for wait this long, so holding an arrow key asks once. */
 const DETAIL_DELAY = 80;
+/** Filters and the search apply once typing pauses this long. */
+const TYPING_DELAY = 300;
 
 let nextRequest = 1;
 
@@ -74,8 +92,23 @@ export class DataView {
   private estimated = false;
   private noteTimer = 0;
   private copyTimer = 0;
-  /** The query whose results these are; undefined for a table or view. */
-  private readonly query: number | undefined;
+  /**
+   * The run whose rows the grid shows: a query's results, or the table's rows sorted or
+   * filtered. Undefined while the grid shows the table's rows as stored.
+   */
+  private query: number | undefined;
+  /** A query's results, which can't be sorted or filtered but by the query. */
+  private readonly results: boolean;
+  private view: RowView;
+  /** The run working out the rows as `view` asks, until its rows arrive. */
+  private running: number | undefined;
+  /** How the last run ended: all rows, as many as are kept, or stopped. */
+  private ended: 'done' | 'limit' | 'stopped' = 'done';
+  /** The table's own row count, for when nothing is sorted or filtered. */
+  private stored = { total: 0, exact: false };
+  private readonly busy: HTMLElement;
+  private readonly stopButton: HTMLButtonElement;
+  private viewTimer = 0;
 
   constructor(
     readonly name: string,
@@ -93,16 +126,105 @@ export class DataView {
     this.note.setAttribute('aria-live', 'polite');
     this.counts = element('span', 'nl-status-counts');
     this.counts.setAttribute('aria-live', 'polite');
-    this.footer.append(this.selectionStatus, this.note, this.counts);
+    this.stopButton = element('button', 'nl-footer-button', strings.stopQuery) as HTMLButtonElement;
+    this.stopButton.type = 'button';
+    this.stopButton.title = strings.stopQueryHint;
+    this.stopButton.hidden = true;
+    this.stopButton.addEventListener('click', () => this.stop());
+    this.footer.append(this.selectionStatus, this.note, this.stopButton, this.counts);
+    this.busy = element('div', 'nl-progress');
+    this.busy.hidden = true;
     this.element.append(element('div', 'nl-progress'), this.footer);
+    this.element.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && this.running !== undefined) {
+        event.preventDefault();
+        this.stop();
+      }
+    });
     const results = options.results;
+    this.results = results !== undefined;
     this.query = results?.query;
+    this.view = options.view ?? PLAIN_VIEW;
     if (results) {
       this.start(results.info);
       this.grid?.setTotal(results.total, true);
     } else {
       send({ type: 'openObject', name });
     }
+  }
+
+  /** How the run sorting or filtering the rows is getting on, and its rows when it's done. */
+  receiveRun(message: RunMessage): void {
+    if (message.run !== this.running || !this.grid) return;
+    const { strings, locale } = this;
+    switch (message.type) {
+      case 'queryProgress':
+        this.counts.textContent = `${isFiltered(this.view) ? strings.filtering : strings.sorting} ${format(strings.rowCount, formatCount(message.rows, locale))}`;
+        return;
+      case 'queryResult':
+        this.finishRun();
+        this.query = message.run;
+        this.ended = message.end;
+        this.grid.reset(
+          message.rows,
+          true,
+          isFiltered(this.view) ? strings.noMatches : strings.noRows,
+        );
+        return;
+      case 'queryError':
+        this.finishRun();
+        this.counts.textContent = this.columnsText(this.columns);
+        this.grid.fail(
+          strings.viewErrorTitle,
+          message.reason === 'stopped'
+            ? strings.queryStopped
+            : `${databaseErrorMessage(message.error ?? 'other', strings)} ${message.detail}`,
+        );
+        return;
+    }
+  }
+
+  /** Sorts by a column: ascending, then descending, then as stored. */
+  sortBy(column: number): void {
+    const order = this.view.order;
+    const next =
+      order?.column !== column
+        ? { column, descending: false }
+        : order.descending
+          ? null
+          : { column, descending: true };
+    this.changeView({ ...this.view, order: next }, true);
+  }
+
+  /** Sort Ascending, Sort Descending or Clear Sort, for the active cell's column. */
+  sortActive(direction: 'ascending' | 'descending' | null): void {
+    const grid = this.grid;
+    if (!grid || this.results) return;
+    const order =
+      direction === null
+        ? null
+        : { column: grid.activeCell.col, descending: direction === 'descending' };
+    this.changeView({ ...this.view, order }, true);
+  }
+
+  /** Text to find in any column; `now` when it's to apply without waiting for more typing. */
+  setSearch(search: string, now = false): void {
+    if (this.results || search === this.view.search) return;
+    this.changeView({ ...this.view, search }, now);
+  }
+
+  /** Shows or hides the column filters; hidden, they filter nothing. */
+  setFilters(open: boolean): void {
+    if (this.results) return;
+    this.grid?.showFilters(open);
+    if (!open && this.view.filters.some((filter) => filter.trim() !== '')) {
+      this.changeView({ ...this.view, filters: [] }, true);
+    }
+  }
+
+  /** Puts the keyboard in the active column's filter. */
+  focusFilter(): void {
+    this.grid?.focusFilter();
   }
 
   receive(message: DataMessage): void {
@@ -119,7 +241,11 @@ export class DataView {
         this.start(message.info);
         break;
       case 'rowCount':
-        this.grid?.setTotal(message.count, true);
+        this.stored = { total: message.count, exact: true };
+        // Sorted or filtered, the rows are counted by the run.
+        if (this.query === undefined && this.running === undefined) {
+          this.grid?.setTotal(message.count, true);
+        }
         break;
       case 'rowPage':
         if (this.requests.delete(message.request)) {
@@ -181,6 +307,7 @@ export class DataView {
     if (this.grid) return;
     this.columns = info.columns.length;
     this.estimated = info.estimate !== null;
+    this.stored = { total: info.estimate ?? 0, exact: false };
     this.grid = new DataGrid(
       info,
       this.strings,
@@ -199,9 +326,18 @@ export class DataView {
         },
         onCopy: (range, toEnd, markdown) => this.copy(range, toEnd, markdown),
         onEnter: () => this.setDetail(true, true),
+        onSort: (column) => this.sortBy(column),
+        onFilter: (column, text, now) => {
+          const filters = info.columns.map((_, c) => this.view.filters[c] ?? '');
+          filters[column] = text;
+          this.changeView({ ...this.view, filters }, now);
+        },
+        onFind: this.options.onFind,
       },
-      this.options.empty,
+      { empty: this.options.empty, sortable: !this.results },
     );
+    this.grid.setView(this.view);
+    if (this.options.filters) this.grid.showFilters(true);
     this.detail = new CellDetail(
       this.strings,
       this.locale,
@@ -225,12 +361,60 @@ export class DataView {
       this.options.detailWidth,
     );
     this.detail.element.hidden = !this.detailOpen;
-    if (this.options.position) this.grid.restore(this.options.position);
-    this.main.replaceChildren(this.grid.element, this.detail.element);
+    const plain = isPlain(this.view);
+    // A place among the rows as stored means nothing among them sorted.
+    if (this.options.position && plain) this.grid.restore(this.options.position);
+    this.main.replaceChildren(this.grid.element, this.detail.element, this.busy);
     this.element.replaceChildren(this.main, this.footer);
     this.showCounts(info.estimate ?? 0, false);
     this.showSelection();
     this.updateDetail();
+    if (!plain && !this.results) this.runView();
+  }
+
+  /** The view changed: tells the shell, and works out the rows once typing pauses. */
+  private changeView(view: RowView, now: boolean): void {
+    this.view = view;
+    this.grid?.setView(view);
+    this.options.onView?.(view);
+    clearTimeout(this.viewTimer);
+    if (now) this.runView();
+    else this.viewTimer = window.setTimeout(() => this.runView(), TYPING_DELAY);
+  }
+
+  /** Asks the host for the rows as the view asks, or goes back to them as stored. */
+  private runView(): void {
+    const grid = this.grid;
+    if (!grid) return;
+    clearTimeout(this.viewTimer);
+    this.requests.clear();
+    if (isPlain(this.view)) {
+      if (this.running !== undefined) this.send({ type: 'stopQuery', run: this.running });
+      this.finishRun();
+      this.query = undefined;
+      this.ended = 'done';
+      grid.reset(this.stored.total, this.stored.exact);
+      return;
+    }
+    const run = newRun();
+    this.running = run;
+    this.busy.hidden = false;
+    this.stopButton.hidden = false;
+    this.element.setAttribute('aria-busy', 'true');
+    this.send({ type: 'runView', run, name: this.name, view: this.view });
+    grid.reset(0, false);
+    this.counts.textContent = isFiltered(this.view) ? this.strings.filtering : this.strings.sorting;
+  }
+
+  private stop(): void {
+    if (this.running !== undefined) this.send({ type: 'stopQuery', run: this.running });
+  }
+
+  private finishRun(): void {
+    this.running = undefined;
+    this.busy.hidden = true;
+    this.stopButton.hidden = true;
+    this.element.removeAttribute('aria-busy');
   }
 
   /** Where the grid is, to come back to; undefined before the rows show. */
@@ -255,6 +439,12 @@ export class DataView {
     clearTimeout(this.noteTimer);
     clearTimeout(this.copyTimer);
     clearTimeout(this.detailTimer);
+    clearTimeout(this.viewTimer);
+    this.stop();
+    // A table's sorted rows hold a worker and its memory: let it go with the view.
+    if (this.query !== undefined && !this.results) {
+      this.send({ type: 'stopQuery', run: this.query });
+    }
     this.grid?.dispose();
     this.element.remove();
   }
@@ -423,9 +613,23 @@ export class DataView {
   }
 
   private showCounts(total: number, exact: boolean): void {
-    const count = formatCount(total, this.locale);
+    const { strings, locale } = this;
+    if (this.running !== undefined) return;
+    const count = formatCount(total, locale);
     let rows: string;
-    if (exact) {
+    if (this.query !== undefined && !this.results) {
+      rows = isFiltered(this.view)
+        ? total === 1
+          ? strings.oneMatchingRow
+          : format(strings.matchingRows, count)
+        : this.rowsText(total);
+      if (this.ended === 'limit') {
+        const limit = this.grid?.hasRowid ? VIEW_ROWS : QUERY_ROWS;
+        rows += ` · ${format(strings.viewLimit, formatCount(limit, locale))}`;
+      } else if (this.ended === 'stopped') {
+        rows += ` · ${strings.viewStopped}`;
+      }
+    } else if (exact) {
       rows = this.rowsText(total);
     } else if (this.estimated && total > 0) {
       rows = `${format(this.strings.rowEstimate, count)} (${this.strings.counting})`;

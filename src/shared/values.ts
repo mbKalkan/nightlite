@@ -10,6 +10,8 @@ export const IMAGE_PREVIEW = 16 * 1024 * 1024;
 /** A query's results hold this many rows, or about this many bytes of values (D-021). */
 export const QUERY_ROWS = 100_000;
 export const QUERY_MEMORY = 256 * 1024 * 1024;
+/** A table's rows sorted or filtered: rowids kept, eight bytes each (D-022). */
+export const VIEW_ROWS = 10_000_000;
 
 /** Image formats a webview shows, by their first bytes. */
 export function imageKind(bytes: Uint8Array): 'png' | 'jpeg' | 'webp' | 'gif' | undefined {

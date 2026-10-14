@@ -3,6 +3,7 @@ import { checkQuery } from '../shared/sqlCheck';
 import { formatBytes, formatCount } from '../shared/units';
 import { QUERY_MEMORY, QUERY_ROWS } from '../shared/values';
 import { DataView, type DataMessage, type DataViewOptions } from './dataView';
+import { newRun } from './runs';
 import { databaseErrorMessage, element, format, messageView } from './views';
 
 export type QueryPageMessage = Extract<
@@ -17,9 +18,6 @@ export interface QueryPageEvents {
   /** How the results' grid and detail panel are to be shown, as the tables' are. */
   dataOptions(): DataViewOptions;
 }
-
-/** Runs are numbered across pages, so a reloaded page never takes an answer meant for another. */
-let nextRun = 1;
 
 /**
  * The query page: a statement to type, Run and Stop, and the rows it returns in the same grid
@@ -140,7 +138,7 @@ export class QueryPage {
     const sql = this.editor.value;
     const check = checkQuery(sql);
     if (this.running) this.events.send({ type: 'stopQuery', run: this.run });
-    this.run = nextRun++;
+    this.run = newRun();
     this.data?.dispose();
     this.data = undefined;
     if (!check.ok) {

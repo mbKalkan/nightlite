@@ -153,6 +153,21 @@
         "command": "nightlite.copyAsMarkdown",
         "title": "%command.copyAsMarkdown%",
         "category": "%category%"
+      },
+      {
+        "command": "nightlite.sortAscending",
+        "title": "%command.sortAscending%",
+        "category": "%category%"
+      },
+      {
+        "command": "nightlite.sortDescending",
+        "title": "%command.sortDescending%",
+        "category": "%category%"
+      },
+      {
+        "command": "nightlite.clearSort",
+        "title": "%command.clearSort%",
+        "category": "%category%"
       }
     ],
     "menus": {
@@ -172,6 +187,18 @@
         {
           "command": "nightlite.copyAsMarkdown",
           "when": "activeCustomEditorId == nightlite.viewer"
+        },
+        {
+          "command": "nightlite.sortAscending",
+          "when": "activeCustomEditorId == nightlite.viewer"
+        },
+        {
+          "command": "nightlite.sortDescending",
+          "when": "activeCustomEditorId == nightlite.viewer"
+        },
+        {
+          "command": "nightlite.clearSort",
+          "when": "activeCustomEditorId == nightlite.viewer"
         }
       ],
       "webview/context": [
@@ -184,6 +211,21 @@
           "command": "nightlite.copyAsMarkdown",
           "when": "webviewId == 'nightlite.viewer' && webviewSection == 'grid'",
           "group": "9_cutcopypaste@2"
+        },
+        {
+          "command": "nightlite.sortAscending",
+          "when": "webviewId == 'nightlite.viewer' && webviewSection == 'grid' && sortable",
+          "group": "1_sort@1"
+        },
+        {
+          "command": "nightlite.sortDescending",
+          "when": "webviewId == 'nightlite.viewer' && webviewSection == 'grid' && sortable",
+          "group": "1_sort@2"
+        },
+        {
+          "command": "nightlite.clearSort",
+          "when": "webviewId == 'nightlite.viewer' && webviewSection == 'grid' && sortable",
+          "group": "1_sort@3"
         }
       ]
     },

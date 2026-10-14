@@ -12,6 +12,7 @@ import type {
   TilePage,
   ZoomRange,
 } from '../../shared/protocol';
+import type { RowView } from '../../shared/rowFilter';
 import type { TileKey } from '../../shared/tiles';
 import type { WorkerCall, WorkerFailure, WorkerResponse } from './messages';
 import type { MetadataRow } from './mbtiles';
@@ -127,6 +128,11 @@ export class DatabaseClient {
   /** Starts a query from the query page: its columns, or why it can't run. */
   queryStart(sql: string): Promise<ObjectInfo> {
     return this.call({ type: 'queryStart', sql }) as Promise<ObjectInfo>;
+  }
+
+  /** Starts working out a table's rows sorted or filtered: its columns, or why it can't. */
+  viewStart(name: string, view: RowView): Promise<ObjectInfo> {
+    return this.call({ type: 'viewStart', name, view }) as Promise<ObjectInfo>;
   }
 
   queryStep(ms: number): Promise<QueryProgress> {
