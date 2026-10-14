@@ -5,6 +5,7 @@ import { parentPort } from 'node:worker_threads';
 import { readDetails } from './details';
 import { readMbtiles, readMetadataRows, zoomCount, zoomRange } from './mbtiles';
 import { writeMetadata } from './metadataWrite';
+import { ExportRun, exportStatement } from './exportRows';
 import type { WorkerCall, WorkerRequest, WorkerResponse } from './messages';
 import { QueryRun, type ResultRows } from './query';
 import { TableReader } from './rows';
@@ -18,6 +19,7 @@ const readers = new Map<string, TableReader>();
 const listers = new Map<number, TileLister>();
 /** The query or table view this worker was started for, with its rows. */
 let query: ResultRows | undefined;
+let exporting: ExportRun | undefined;
 
 function handle(call: WorkerCall): unknown {
   switch (call.type) {
@@ -70,6 +72,13 @@ function handle(call: WorkerCall): unknown {
       connection().exec('PRAGMA query_only = ON');
       query = new QueryRun(connection(), call.sql);
       return query.info;
+    case 'exportStart':
+      connection().exec('PRAGMA query_only = ON; PRAGMA cache_size = -131072; PRAGMA threads = 4');
+      exporting = new ExportRun(connection(), exportStatement(call.source, reader), call.format);
+      return null;
+    case 'exportStep':
+      if (!exporting) throw new Error('No export has started');
+      return exporting.next(call.bytes, call.ms);
     case 'viewStart':
       // A sort needs room: SQLite sorts in memory up to the page cache, then in temporary files
       // (never beside the database). With the default 2 MB, 10 M rows took 108 s; with 128 MB, 11 s.

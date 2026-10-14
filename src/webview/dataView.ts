@@ -222,6 +222,16 @@ export class DataView {
     }
   }
 
+  /** Asks the host to export the rows as shown: sorted and filtered as they are. */
+  exportRows(): void {
+    if (this.results) return;
+    this.send({
+      type: 'exportRows',
+      source: { table: this.name, view: this.view },
+      name: this.name,
+    });
+  }
+
   /** Puts the keyboard in the active column's filter. */
   focusFilter(): void {
     this.grid?.focusFilter();

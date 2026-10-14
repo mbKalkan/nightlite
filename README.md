@@ -52,6 +52,8 @@ tileset opens at once.
 - <kbd>Ctrl</kbd>+<kbd>C</kbd> copies the selection with full values, even where the grid cuts them
   short: one cell as it is, more as tab-separated text that spreadsheets paste into columns.
   **Copy as Markdown Table**, in the context menu, copies it as a table for a README or an issue
+- **Export Rows…** writes a table's rows as shown, sorted and filtered, or every row of a query,
+  to a CSV or JSON file, with values whole: ten million rows take about fifteen seconds
 - Cell details beside the grid: JSON indented and colored, long text in full, BLOBs as the image
   or text they hold, or as a hex dump
 - The schema of each table: columns, indexes and foreign keys, and the statement that created it

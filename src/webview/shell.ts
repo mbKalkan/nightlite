@@ -71,6 +71,7 @@ export class Shell {
   private readonly search: HTMLElement;
   private readonly searchInput: HTMLInputElement;
   private readonly filterToggle: HTMLElement;
+  private readonly exportButton: HTMLElement;
   /** How each table's rows are sorted and filtered, by name. */
   private readonly views: Map<string, RowView>;
   private filterRow: boolean;
@@ -137,6 +138,7 @@ export class Shell {
             <button type="button" class="nl-tab" role="tab" data-tab="schema"></button>
           </div>
           <button type="button" class="nl-icon-button nl-filter-toggle" hidden>${icons.filter}</button>
+          <button type="button" class="nl-icon-button nl-export" hidden>${icons.save}</button>
           <button type="button" class="nl-icon-button nl-detail-toggle" hidden>${icons.panelRight}</button>
         </header>
         <div class="nl-body">
@@ -158,6 +160,8 @@ export class Shell {
     });
     this.filterToggle = root.querySelector('.nl-filter-toggle') as HTMLElement;
     this.filterToggle.addEventListener('click', () => this.setFilterRow(!this.filterRow));
+    this.exportButton = root.querySelector('.nl-export') as HTMLElement;
+    this.exportButton.addEventListener('click', () => this.data?.exportRows());
     this.sidebar = root.querySelector('.nl-sidebar') as HTMLElement;
     this.content = root.querySelector('.nl-content') as HTMLElement;
     this.tabs.addEventListener('click', (event) => {
@@ -193,6 +197,8 @@ export class Shell {
     this.searchInput.setAttribute('aria-label', strings.searchRows);
     this.filterToggle.title = strings.filterByColumn;
     this.filterToggle.setAttribute('aria-label', strings.filterByColumn);
+    this.exportButton.title = strings.exportHint;
+    this.exportButton.setAttribute('aria-label', strings.exportRows);
     this.markFilterRow();
     if (!reloading) this.show('overview');
     // Until the schema arrives the database is still opening.
@@ -253,6 +259,7 @@ export class Shell {
     this.detailToggle.hidden = true;
     this.search.hidden = true;
     this.filterToggle.hidden = true;
+    this.exportButton.hidden = true;
     const messages: Record<LoadError, string> = {
       empty: strings.errorEmpty,
       notSqlite: strings.errorNotSqlite,
@@ -295,6 +302,12 @@ export class Shell {
   queryMessage(message: QueryPageMessage | RunMessage): void {
     this.queryPage?.receive(message);
     this.data?.receiveRun(message);
+  }
+
+  /** Export Rows…, from the Command Palette or the context menu: the rows on screen. */
+  exportRows(): void {
+    if (this.shown === 'query') this.queryPage?.exportRows();
+    else this.data?.exportRows();
   }
 
   /** Sort Ascending, Sort Descending or Clear Sort, from the context menu. */
@@ -399,6 +412,8 @@ export class Shell {
     this.search.classList.toggle('nl-invisible', this.tab !== 'data');
     this.filterToggle.hidden = !hasRows;
     this.filterToggle.classList.toggle('nl-invisible', this.tab !== 'data');
+    this.exportButton.hidden = !hasRows;
+    this.exportButton.classList.toggle('nl-invisible', this.tab !== 'data');
     if (hasRows) this.lastObject = object.name;
     if (object && hasRows && this.tab === 'data') {
       const name = object.name;

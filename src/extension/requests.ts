@@ -1,5 +1,6 @@
 import type {
   CopyRange,
+  ExportSource,
   FullCell,
   HostToWebviewMessage,
   MbtilesSummary,
@@ -61,6 +62,8 @@ export interface HostServices {
   saveTile(name: string, stored: Uint8Array): Thenable<void> | Promise<void>;
   /** A metadata edit was made: VS Code marks the file changed and can undo it. */
   onMetadataEdit(edit: MetadataEdit): void;
+  /** Asks where to export rows, offering `name`, and writes them there (D-023). */
+  exportRows(source: ExportSource, name: string): Thenable<void> | Promise<void>;
 }
 
 /**
@@ -186,6 +189,9 @@ export async function answer(
       if (edit) host.onMetadataEdit(edit);
       return;
     }
+    case 'exportRows':
+      await host.exportRows(message.source, message.name);
+      return;
     case 'saveTile': {
       let stored: Uint8Array | null;
       try {

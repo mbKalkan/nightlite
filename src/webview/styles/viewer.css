@@ -765,12 +765,17 @@ body.vscode-high-contrast .nl-sql-keyword {
 }
 
 .nl-detail-toggle,
-.nl-filter-toggle {
+.nl-filter-toggle,
+.nl-export {
   margin-left: 4px;
 }
 
 /* Without the tabs, as on the query page, the toggle keeps to the right on its own. */
-.nl-tabs[hidden] + .nl-filter-toggle[hidden] + .nl-detail-toggle {
+.nl-tabs[hidden] + .nl-filter-toggle[hidden] + .nl-export[hidden] + .nl-detail-toggle {
+  margin-left: auto;
+}
+
+.nl-query-export {
   margin-left: auto;
 }
 

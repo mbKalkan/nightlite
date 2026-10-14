@@ -317,6 +317,9 @@ export interface ViewerStrings {
   featureId: string;
   noAttributes: string;
   saveTile: string;
+  /** Export Rows… (D-023). */
+  exportRows: string;
+  exportHint: string;
   /** Sorting, filtering and searching a table's rows (D-022). */
   searchRows: string;
   searchHint: string;
@@ -418,6 +421,16 @@ export interface RevealMessage {
 /** Open SQL Query, from the Command Palette. */
 export interface OpenQueryMessage {
   type: 'openQuery';
+}
+
+/** What to export: a table's or view's rows as shown, sorted and filtered, or a query's rows. */
+export type ExportSource = { table: string; view: RowView } | { sql: string };
+
+export type ExportFormat = 'csv' | 'json';
+
+/** Export Rows…, from the Command Palette or the grid's context menu: the rows on screen. */
+export interface ExportRequestMessage {
+  type: 'exportRequest';
 }
 
 /** Sort Ascending, Sort Descending or Clear Sort, from the grid's context menu. */
@@ -718,6 +731,7 @@ export type HostToWebviewMessage =
   | CopySelectionMessage
   | OpenQueryMessage
   | SortRowsMessage
+  | ExportRequestMessage
   | ObjectInfoMessage
   | RowCountMessage
   | RowPageMessage
@@ -768,6 +782,8 @@ export type WebviewToHostMessage =
   | { type: 'runQuery'; run: number; sql: string }
   /** Works out a table's or view's rows sorted or filtered, ending the run before (D-022). */
   | { type: 'runView'; run: number; name: string; view: RowView }
+  /** Writes rows to a CSV or JSON file the user picks; `name` names the file offered. */
+  | { type: 'exportRows'; source: ExportSource; name: string }
   /** Stops the query running, keeping the rows read so far. */
   | { type: 'stopQuery'; run: number }
   /** Asks for an object's columns, indexes and foreign keys, for its Schema page. */

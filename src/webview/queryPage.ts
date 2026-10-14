@@ -33,6 +33,10 @@ export class QueryPage {
   private readonly results: HTMLElement;
   private run = 0;
   private running = false;
+  private readonly exportButton: HTMLButtonElement;
+  /** The statement whose rows are shown, to export them all, and the one last run. */
+  private shownSql: string | undefined;
+  private sentSql = '';
   /** The rows of the last query that returned some. */
   data: DataView | undefined;
 
@@ -55,7 +59,14 @@ export class QueryPage {
     this.stopButton.hidden = true;
     this.status = element('span', 'nl-query-status');
     this.status.setAttribute('role', 'status');
-    bar.append(this.runButton, this.stopButton, this.status);
+    this.exportButton = this.button(
+      strings.exportRows,
+      strings.exportHint,
+      'nl-button nl-button-secondary nl-query-export',
+    );
+    this.exportButton.hidden = true;
+    this.exportButton.addEventListener('click', () => this.exportRows());
+    bar.append(this.runButton, this.stopButton, this.status, this.exportButton);
 
     this.editor = document.createElement('textarea');
     this.editor.className = 'nl-query-editor';
@@ -89,6 +100,8 @@ export class QueryPage {
           empty: strings.queryNoRows,
         });
         this.results.replaceChildren(this.data.element);
+        this.shownSql = this.sentSql;
+        this.exportButton.hidden = false;
         const parts = [this.rowsText(message.rows), this.timeText(message.ms)];
         if (message.end === 'stopped') parts.unshift(strings.queryStoppedNote);
         this.status.textContent = parts.join(' · ');
@@ -124,6 +137,12 @@ export class QueryPage {
     }
   }
 
+  /** Asks the host to export every row of the statement shown, not only those kept here. */
+  exportRows(): void {
+    if (this.shownSql === undefined) return;
+    this.events.send({ type: 'exportRows', source: { sql: this.shownSql }, name: 'query' });
+  }
+
   /** The grid's answers, for the rows on screen. */
   receiveData(message: DataMessage): void {
     this.data?.receive(message);
@@ -141,6 +160,9 @@ export class QueryPage {
     this.run = newRun();
     this.data?.dispose();
     this.data = undefined;
+    this.shownSql = undefined;
+    this.sentSql = sql;
+    this.exportButton.hidden = true;
     if (!check.ok) {
       this.finish();
       this.status.textContent = '';

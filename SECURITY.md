@@ -9,6 +9,9 @@ to it: on a connection of its own, closed right after, in one transaction, with 
 parameterized statements, to the `metadata` table only. Metadata you type is bound as values,
 never run as SQL.
 
+**Export Rows…** writes a new CSV or JSON file only where you choose in the save dialog, and
+never over the database or its journal files.
+
 The SQL Query page runs only statements that read: `SELECT`, `WITH … SELECT`, `VALUES`,
 `EXPLAIN`, and `PRAGMA`s that report. Each statement is checked before it runs, one at a time,
 so `ATTACH`, `VACUUM INTO` and everything that writes are turned down. Queries run on a
