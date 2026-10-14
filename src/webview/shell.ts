@@ -7,6 +7,7 @@ import type {
   ViewerStrings,
   WebviewToHostMessage,
 } from '../shared/protocol';
+import { sqlBlock } from '../shared/reference';
 import { isPlain, type RowView } from '../shared/rowFilter';
 import { DataView, type DataViewOptions, type RunMessage } from './dataView';
 import { DatabaseOverview, listedTables, type TablesState } from './databaseOverview';
@@ -19,6 +20,7 @@ import { TileBrowser, type TileMessage, type TileView } from './mbtiles/tileBrow
 import { detailsSections } from './schemaDetails';
 import { ObjectTree, objectKey, type EntryKey } from './objectTree';
 import { QueryPage, type QueryPageMessage } from './queryPage';
+import { sourceLocation, takeContextTarget, trackContextMenu } from './reference';
 import { databaseErrorMessage, element, messageView, objectView, overviewView } from './views';
 
 /** Which page of a table or view is shown: its rows or the statement that made it. */
@@ -172,6 +174,7 @@ export class Shell {
       if (tab) this.setTab(tab as PageTab, false);
     });
     this.tabs.addEventListener('keydown', (event) => this.onTabKey(event));
+    trackContextMenu(root);
   }
 
   /** A thin progress bar, as VS Code shows above a loading view. Strings arrive with the file. */
@@ -293,6 +296,35 @@ export class Shell {
   /** Copy or Copy as Markdown Table: the grid's selection, when a grid is in view. */
   copySelection(markdown: boolean): void {
     this.shownData()?.copySelection(markdown);
+  }
+
+  /**
+   * Copy Reference (D-026): to the table, view, index or trigger right-clicked in the sidebar,
+   * else to what's in view: the grid's selection, the object, the tile, or else the file alone.
+   * With `withText`, what is there follows: the values, or the statement that made the object.
+   */
+  copyReference(withText: boolean): void {
+    const item = takeContextTarget()?.closest<HTMLElement>('.nl-tree-item[data-key]');
+    const clicked = item ? this.objects.get(item.dataset.key ?? '') : undefined;
+    const shown = this.objects.get(this.shown);
+    const object = clicked ?? shown;
+    if (!clicked && this.shown === 'query') {
+      if (this.queryPage?.copyReference(withText)) return;
+    } else if (!clicked && this.data && (shown?.type === 'table' || shown?.type === 'view')) {
+      this.data.copyReference(withText, { type: shown.type, name: shown.name });
+      return;
+    } else if (object && this.file) {
+      this.events.send({
+        type: 'reference',
+        location: sourceLocation(object, this.file.strings),
+        text: withText && object.sql ? sqlBlock(object.sql) : undefined,
+      });
+      return;
+    }
+    this.events.send({
+      type: 'reference',
+      location: this.shown === 'tiles' ? (this.browser?.reference() ?? '') : '',
+    });
   }
 
   /** Shows the query page and puts the keyboard in its statement. */
@@ -465,7 +497,10 @@ export class Shell {
       return;
     }
     if (object) {
-      this.content.replaceChildren(objectView(object, strings));
+      const page = objectView(object, strings);
+      // The context menu offers Copy Reference for the object.
+      page.dataset.vscodeContext = JSON.stringify({ webviewSection: 'object' });
+      this.content.replaceChildren(page);
       const known = this.details.get(object.name);
       if (known) {
         this.showDetails(known);

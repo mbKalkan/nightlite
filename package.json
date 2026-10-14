@@ -157,6 +157,16 @@
         "category": "%category%"
       },
       {
+        "command": "nightlite.copyReference",
+        "title": "%command.copyReference%",
+        "category": "%category%"
+      },
+      {
+        "command": "nightlite.copyReferenceWithText",
+        "title": "%command.copyReferenceWithText%",
+        "category": "%category%"
+      },
+      {
         "command": "nightlite.sortAscending",
         "title": "%command.sortAscending%",
         "category": "%category%"
@@ -196,6 +206,14 @@
           "when": "activeCustomEditorId == nightlite.viewer"
         },
         {
+          "command": "nightlite.copyReference",
+          "when": "activeCustomEditorId == nightlite.viewer"
+        },
+        {
+          "command": "nightlite.copyReferenceWithText",
+          "when": "activeCustomEditorId == nightlite.viewer"
+        },
+        {
           "command": "nightlite.sortAscending",
           "when": "activeCustomEditorId == nightlite.viewer"
         },
@@ -219,9 +237,19 @@
           "group": "9_cutcopypaste@1"
         },
         {
+          "command": "nightlite.copyReference",
+          "when": "webviewId == 'nightlite.viewer' && webviewSection =~ /^(grid|object|tile)$/",
+          "group": "9_cutcopypaste@2"
+        },
+        {
+          "command": "nightlite.copyReferenceWithText",
+          "when": "webviewId == 'nightlite.viewer' && webviewSection =~ /^(grid|object)$/",
+          "group": "9_cutcopypaste@3"
+        },
+        {
           "command": "nightlite.copyAsMarkdown",
           "when": "webviewId == 'nightlite.viewer' && webviewSection == 'grid'",
-          "group": "9_cutcopypaste@2"
+          "group": "9_cutcopypaste@4"
         },
         {
           "command": "nightlite.sortAscending",

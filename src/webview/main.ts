@@ -89,6 +89,9 @@ window.addEventListener('message', (event: MessageEvent<HostToWebviewMessage>) =
     case 'copySelection':
       shell.copySelection(message.markdown);
       break;
+    case 'copyReference':
+      shell.copyReference(message.withText);
+      break;
     case 'openQuery':
       shell.openQuery();
       break;

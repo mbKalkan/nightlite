@@ -50,8 +50,11 @@ export interface GridEvents {
   request(start: number, count: number, total: number): void;
   onTotal(total: number, exact: boolean): void;
   onSelection(): void;
-  /** `toEnd`: the selection runs to the last row, wherever the count turns out to end. */
-  onCopy(range: CellRange, toEnd: boolean, markdown: boolean): void;
+  /**
+   * `toEnd`: the selection runs to the last row, wherever the count turns out to end. With
+   * `reference`, the copy follows a reference to the selection (D-026).
+   */
+  onCopy(range: CellRange, toEnd: boolean, markdown: boolean, reference?: string): void;
   /** Enter or a double click on a cell: show it in full. */
   onEnter(): void;
   /** A column's sort button was clicked. */
@@ -138,8 +141,8 @@ export class DataGrid {
       'aria-label',
       info.name ? strings.rowsOf.replace('{0}', info.name) : strings.queryResults,
     );
-    // The context menu offers Copy and Copy as Markdown Table here, in place of Cut, Copy, Paste.
-    // Tables' and views' grids sort too.
+    // The context menu offers Copy, Copy Reference and Copy as Markdown Table here, in place of
+    // Cut, Copy, Paste. Tables' and views' grids sort too.
     this.element.dataset.vscodeContext = JSON.stringify({
       webviewSection: 'grid',
       sortable: options.sortable === true,
@@ -199,6 +202,11 @@ export class DataGrid {
 
   get hasRowid(): boolean {
     return this.info.hasRowid;
+  }
+
+  /** Whether there are cells to copy: rows, and no error in their place. */
+  get copyable(): boolean {
+    return this.total > 0 && !this.failed;
   }
 
   columnName(col: number): string | undefined {
@@ -588,11 +596,11 @@ export class DataGrid {
     this.copySelection(false);
   }
 
-  /** Copies the selection, as tab-separated text or as a Markdown table. */
-  copySelection(markdown: boolean): void {
-    if (this.total === 0 || this.failed) return;
+  /** Copies the selection, as tab-separated text or as a Markdown table, after `reference`. */
+  copySelection(markdown: boolean, reference?: string): void {
+    if (!this.copyable) return;
     const range = this.selection;
-    this.events.onCopy(range, range.row2 >= this.total - 1 && !this.exact, markdown);
+    this.events.onCopy(range, range.row2 >= this.total - 1 && !this.exact, markdown, reference);
   }
 
   private inSelection(hit: CellPosition & { header: boolean }): boolean {

@@ -143,6 +143,13 @@ export class QueryPage {
     this.events.send({ type: 'exportRows', source: { sql: this.shownSql }, name: 'query' });
   }
 
+  /** Copy Reference for the results shown, named by their statement; false when there are none. */
+  copyReference(withText: boolean): boolean {
+    if (!this.data || this.shownSql === undefined) return false;
+    this.data.copyReference(withText, { type: 'query', sql: this.shownSql });
+    return true;
+  }
+
   /** The grid's answers, for the rows on screen. */
   receiveData(message: DataMessage): void {
     this.data?.receive(message);

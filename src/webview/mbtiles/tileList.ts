@@ -230,7 +230,8 @@ export class TileList {
 
   private onMouseDown(event: MouseEvent): void {
     const row = (event.target as Element).closest<HTMLElement>('[data-position]');
-    if (event.button !== 0 || !row) return;
+    // A right click picks the tile too, for the context menu's Copy Reference.
+    if ((event.button !== 0 && event.button !== 2) || !row) return;
     event.preventDefault();
     this.scroller.focus({ preventScroll: true });
     const position = Number(row.dataset.position);

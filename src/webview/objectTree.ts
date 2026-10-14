@@ -13,6 +13,8 @@ interface Entry {
   count?: number;
   muted?: boolean;
   title?: string;
+  /** A table, view, index or trigger, which the context menu can copy a reference to. */
+  object?: boolean;
 }
 
 const GROUPS: { type: ObjectType; label: keyof ViewerStrings }[] = [
@@ -69,6 +71,7 @@ function entriesFor(
         level: 2,
         icon: icons[object.type],
         muted: object.internal,
+        object: true,
         title:
           object.tableName !== object.name
             ? `${object.name} — ${strings.onTable.replace('{0}', object.tableName)}`
@@ -142,6 +145,9 @@ export class ObjectTree {
     row.style.setProperty('--nl-level', String(entry.level - 1));
     if (entry.muted) {
       row.classList.add('nl-muted');
+    }
+    if (entry.object) {
+      row.dataset.vscodeContext = JSON.stringify({ webviewSection: 'object' });
     }
     row.title = entry.title ?? entry.label;
 

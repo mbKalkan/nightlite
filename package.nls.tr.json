@@ -11,5 +11,7 @@
   "command.sortAscending": "Artan Sırala",
   "command.sortDescending": "Azalan Sırala",
   "command.clearSort": "Sıralamayı Kaldır",
-  "command.exportRows": "Satırları Dışa Aktar…"
+  "command.exportRows": "Satırları Dışa Aktar…",
+  "command.copyReference": "Referansı Kopyala",
+  "command.copyReferenceWithText": "Referansı Metinle Kopyala"
 }
