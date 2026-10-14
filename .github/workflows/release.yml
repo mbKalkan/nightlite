@@ -1,0 +1,94 @@
+name: Release
+
+# Pushing a tag like v0.1.0 checks, packages and publishes that version. The tag must match the
+# version in package.json, and CHANGELOG.md must have a section for it.
+on:
+  push:
+    tags: ['v*']
+  # Publishes an existing tag again, for example to a store whose token was added after the tag.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to publish, like v0.2.0
+        required: true
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Check the tag, version and changelog agree
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          if [ "v$version" != "$TAG" ]; then
+            echo "Tag $TAG doesn't match package.json version $version"
+            exit 1
+          fi
+          node scripts/release-notes.mjs "$version" > release-notes.md
+
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npx playwright install --with-deps chromium
+      - run: npm run fixtures:large
+      - run: npm run test:visual
+      - run: xvfb-run -a npm run test:smoke
+      # The lowest VS Code version package.json accepts.
+      - name: Smoke test on the oldest supported VS Code
+        run: |
+          version="$(node -p "require('./package.json').engines.vscode.replace(/^\^/, '')")"
+          VSCODE_VERSION="$version" xvfb-run -a npm run test:smoke
+
+      - run: npm run package -- --out "nightlite-$TAG.vsix"
+
+      # Each store is published to only when its token is set, so a version can also be uploaded
+      # by hand and still get its GitHub release here. A version already in a store is skipped,
+      # so publishing a tag again is safe. Tokens reach only the step that uses them.
+      - name: Check which stores to publish to
+        id: stores
+        run: |
+          echo "marketplace=${{ secrets.VSCE_PAT != '' }}" >> "$GITHUB_OUTPUT"
+          echo "openvsx=${{ secrets.OVSX_PAT != '' }}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish to the Visual Studio Marketplace
+        if: steps.stores.outputs.marketplace == 'true'
+        run: npx vsce publish --skip-duplicate --packagePath "nightlite-$TAG.vsix"
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+      # Run with npx rather than installed: it's a publishing tool, not part of the extension.
+      - name: Publish to Open VSX
+        if: steps.stores.outputs.openvsx == 'true'
+        run: npx --yes ovsx@1.2.0 publish --skip-duplicate "nightlite-$TAG.vsix"
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+
+      # A published release stays as it was when a tag is published again.
+      - name: Create the GitHub release
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "Release $TAG already exists"
+          else
+            gh release create "$TAG" "nightlite-$TAG.vsix" --title "$TAG" --notes-file release-notes.md
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
