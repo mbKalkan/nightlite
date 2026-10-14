@@ -2,6 +2,8 @@
 
 # Nightlite
 
+[![Visual Studio Marketplace](https://img.shields.io/visual-studio-marketplace/v/MBKDevStudio.nightlite?label=Marketplace)](https://marketplace.visualstudio.com/items?itemName=MBKDevStudio.nightlite)
+[![Open VSX](https://img.shields.io/open-vsx/v/MBKDevStudio/nightlite?label=Open%20VSX)](https://open-vsx.org/extension/MBKDevStudio/nightlite)
 [![CI](https://github.com/mbKalkan/nightlite/actions/workflows/ci.yml/badge.svg)](https://github.com/mbKalkan/nightlite/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -12,8 +14,6 @@ Nightlite is a fast, dark-first, read-only viewer for SQLite files: app database
 `.sqlite3`, `.db`, `.db3`), MBTiles tilesets (`.mbtiles`) and GeoPackages (`.gpkg`). It reads only
 the rows on screen, so a table of ten million rows scrolls as smoothly as one of ten, and a 24 GB
 tileset opens at once.
-
-> **Preview.** Nightlite is in early development and not published yet.
 
 ![A table of ten million rows in Nightlite, scrolled halfway down, with a cell selected and its value in the status bar](docs/images/rows-dark.png)
 
@@ -71,7 +71,11 @@ tileset opens at once.
 
 ## Getting started
 
-1. Install **Nightlite** from the Extensions view.
+1. Install **Nightlite** from the
+   [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=MBKDevStudio.nightlite)
+   or, in VSCodium and other editors that use it,
+   [Open VSX](https://open-vsx.org/extension/MBKDevStudio/nightlite). Or search for "Nightlite"
+   in the Extensions view.
 2. Open a `.sqlite`, `.sqlite3`, `.db`, `.db3`, `.mbtiles` or `.gpkg` file. Nightlite is the
    default viewer for these files.
 
