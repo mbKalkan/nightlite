@@ -53,6 +53,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   its vector layers with their fields, zoom levels and, where the tileset records them, feature
   counts, and its metadata as the MBTiles 1.3 spec reads it. Missing or unreadable keys, and zoom
   levels the tiles contradict, are pointed out. Deduplicated tilesets, where `tiles` is a view,
-  are recognized.
+  are recognized. Long values, like a legend with an embedded image, are cut short there; the
+  metadata table shows them in full.
+- Views that quote strings with double quotes, as GDAL writes them into GeoPackages
+  (`st_geometry_columns`), read as they do in SQLite's own shell instead of failing.
 - When the file changes on disk, the viewer reloads it and comes back to the same table, rows and
   selected cell. Each table also keeps its place while you look at others.

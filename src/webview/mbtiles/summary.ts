@@ -9,6 +9,9 @@ import type {
 import { formatCount } from '../../shared/units';
 import { databaseErrorMessage, element, format, overviewView } from '../views';
 
+/** How much of a long metadata value the summary shows. */
+const VALUE_PREVIEW = 240;
+
 /** What the viewer knows about an MBTiles file so far; tile counts arrive one level at a time. */
 export interface TilesState {
   summary?: MbtilesSummary;
@@ -240,7 +243,7 @@ export class MbtilesView {
     const list = element('dl', 'nl-facts');
     for (const [term, value] of rows) {
       if (value === undefined || value === '') continue;
-      list.append(element('dt', '', term), element('dd', '', value));
+      list.append(element('dt', '', term), this.valueCell(value));
     }
     section.append(list);
     if (tileset.missing.length) {
@@ -264,6 +267,27 @@ export class MbtilesView {
       found.push(format(this.strings.maxzoomMismatch, String(tileset.maxzoom), String(range.max)));
     }
     return found;
+  }
+
+  /**
+   * A metadata value, cut short when long: some tilesets keep whole HTML legends with images
+   * in their metadata. The metadata table shows every value in full.
+   */
+  private valueCell(value: string): HTMLElement {
+    const cell = element('dd', '');
+    if (value.length <= VALUE_PREVIEW) {
+      cell.textContent = value;
+      return cell;
+    }
+    cell.append(
+      `${value.slice(0, VALUE_PREVIEW)}… `,
+      element(
+        'span',
+        'nl-note',
+        `(${format(this.strings.characters, formatCount(value.length, this.locale))})`,
+      ),
+    );
+    return cell;
   }
 
   private formatText(format: string): string {

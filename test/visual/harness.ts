@@ -6,7 +6,7 @@ import { readDetails } from '../../src/extension/database/details';
 import { readMbtiles, zoomCount, zoomRange } from '../../src/extension/database/mbtiles';
 import { TableReader } from '../../src/extension/database/rows';
 import { readSchema } from '../../src/extension/database/schema';
-import { connectionTarget } from '../../src/extension/database/target';
+import { READ_OPTIONS, connectionTarget } from '../../src/extension/database/target';
 import { answer } from '../../src/extension/requests';
 import { viewerStrings } from '../../src/extension/strings';
 import { buildWebviewHtml } from '../../src/extension/webviewHtml';
@@ -201,9 +201,7 @@ export async function openViewer(page: Page, theme: ThemeName) {
       await page.waitForSelector('.nl-overview, .nl-content[aria-busy="true"]');
       if (!schema) return;
       database?.db.close();
-      const db = new DatabaseSync(connectionTarget(path, result.file.header.wal), {
-        readOnly: true,
-      });
+      const db = new DatabaseSync(connectionTarget(path, result.file.header.wal), READ_OPTIONS);
       database = { db, readers: new Map(), count };
       await this.post({ type: 'schema', objects: readSchema(db) });
       await page.waitForSelector('.nl-sidebar:not([hidden])');
