@@ -136,6 +136,10 @@ window.addEventListener('message', (event: MessageEvent<HostToWebviewMessage>) =
     case 'queryError':
       shell.queryMessage(message);
       break;
+    case 'geopackage':
+    case 'geopackageError':
+      shell.geopackageMessage(message);
+      break;
   }
 });
 

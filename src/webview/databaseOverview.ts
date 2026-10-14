@@ -1,5 +1,6 @@
 import type { FileInfo, SchemaObject, TableSummary, ViewerStrings } from '../shared/protocol';
 import { formatCount } from '../shared/units';
+import { geopackageSection, type GeoPackageState } from './geopackageContents';
 import { element, format, overviewView } from './views';
 
 /** Tables beyond this many are left out of the overview; the sidebar lists them all. */
@@ -22,19 +23,22 @@ export function listedTables(objects: SchemaObject[]): string[] {
 
 /**
  * A database's first view: the file's facts, how many of each kind of object it holds, and its
- * tables with their rows and columns, counted in the background and drawn to scale.
+ * tables with their rows and columns, counted in the background and drawn to scale. A
+ * GeoPackage's contents come first, when it is one.
  */
 export class DatabaseOverview {
   readonly element: HTMLElement;
   private readonly tables: HTMLElement;
+  private geopackage: HTMLElement | undefined;
 
   constructor(
-    file: FileInfo,
+    private readonly file: FileInfo,
     private readonly locale: string,
     private readonly strings: ViewerStrings,
     private readonly objects: SchemaObject[],
     private readonly state: TablesState,
     private readonly onOpen: (name: string) => void,
+    private readonly geopackageState?: GeoPackageState,
   ) {
     this.element = overviewView(file, locale, strings);
     this.tables = element('section', 'nl-section nl-table-sizes');
@@ -42,8 +46,25 @@ export class DatabaseOverview {
     this.renderTables();
   }
 
+  /** Redraws a GeoPackage's contents, as they arrive and as their tables are counted. */
+  renderGeoPackage(): void {
+    if (!this.geopackageState) return;
+    const section = geopackageSection(
+      this.geopackageState,
+      this.file.header,
+      this.state,
+      this.strings,
+      this.locale,
+      this.onOpen,
+    );
+    if (this.geopackage) this.geopackage.replaceWith(section);
+    else this.tables.before(section);
+    this.geopackage = section;
+  }
+
   /** Redraws the tables, as each one's count arrives. */
   renderTables(): void {
+    this.renderGeoPackage();
     const { strings, state, locale } = this;
     const names = listedTables(this.objects);
     const parts: HTMLElement[] = [element('h2', 'nl-heading', strings.tables)];

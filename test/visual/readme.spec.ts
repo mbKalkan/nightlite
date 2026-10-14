@@ -137,3 +137,12 @@ test('a query and its rows', async ({ page }) => {
   await settle(page);
   await page.screenshot({ path: `${OUT}/query-dark.png` });
 });
+
+test("a GeoPackage's contents", async ({ page }) => {
+  const viewer = await openViewer(page, 'dark');
+  await viewer.load('sample.gpkg');
+  await expect(page.locator('.nl-contents-row:not(.nl-contents-head)')).toHaveCount(5);
+  await expect(page.locator('.nl-size-row.nl-pending')).toHaveCount(0);
+  await settle(page);
+  await page.screenshot({ path: `${OUT}/geopackage-dark.png` });
+});

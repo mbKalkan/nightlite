@@ -4,6 +4,7 @@ import type {
   ExportFormat,
   ExportSource,
   FullCell,
+  GeoPackageSummary,
   MbtilesSummary,
   ObjectDetails,
   ObjectInfo,
@@ -91,6 +92,10 @@ export class DatabaseClient {
 
   mbtiles(): Promise<MbtilesSummary> {
     return this.call({ type: 'mbtiles' }) as Promise<MbtilesSummary>;
+  }
+
+  geopackage(): Promise<GeoPackageSummary> {
+    return this.call({ type: 'geopackage' }) as Promise<GeoPackageSummary>;
   }
 
   zoomRange(): Promise<ZoomRange | null> {

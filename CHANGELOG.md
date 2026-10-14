@@ -34,6 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cell details show a BLOB that holds an image (PNG, JPEG, WebP, GIF) as the picture, with its
   size in pixels, and one that holds text as the text, JSON indented and colored. **Hex** shows
   the bytes instead, and stays picked for the next BLOBs until you switch back.
+- A GeoPackage's overview lists its contents: each feature, tile and attribute table with its
+  geometry type and column or zoom levels, its spatial reference system (like `EPSG:4326`),
+  rows and bounds, then the extensions it uses, and its GeoPackage version.
 - GeoPackage geometries say what they are in the grid (`MULTIPOLYGON`, `POINT Z`), and the cell
   details draw them, with their SRS and number of points, or show them as WKT. Points, lines,
   polygons with their holes, multi-geometries, collections and curves are read, in either byte

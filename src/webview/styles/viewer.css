@@ -413,6 +413,61 @@ body.vscode-high-contrast .nl-size-fill {
   outline-offset: 1px;
 }
 
+/* A GeoPackage's contents (D-024). */
+.nl-contents-table {
+  display: grid;
+  grid-template-columns:
+    minmax(0, max-content) max-content minmax(0, max-content) max-content max-content
+    minmax(0, max-content);
+  gap: 4px 20px;
+  align-items: baseline;
+  margin-bottom: 16px;
+}
+
+.nl-contents-row {
+  display: contents;
+}
+
+.nl-contents-head span {
+  color: var(--vscode-descriptionForeground);
+  font-size: 12px;
+}
+
+.nl-contents-head span:nth-child(5) {
+  text-align: right;
+}
+
+.nl-contents-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.nl-contents-table-name,
+.nl-contents-bounds,
+.nl-heading-note {
+  color: var(--vscode-descriptionForeground);
+  font-size: 12px;
+}
+
+.nl-contents-detail,
+.nl-contents-bounds {
+  overflow: hidden;
+  font-family: var(--vscode-editor-font-family, monospace);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nl-heading-note {
+  font-weight: normal;
+}
+
+.nl-extensions {
+  margin: 0 0 16px;
+  padding-left: 18px;
+  font-family: var(--vscode-editor-font-family, monospace);
+}
+
 /* The MBTiles summary */
 
 .nl-mbtiles-head {

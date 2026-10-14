@@ -15,6 +15,7 @@ export type WorkerCall =
   | { type: 'objectDetails'; name: string }
   | { type: 'tableSummary'; name: string }
   | { type: 'mbtiles' }
+  | { type: 'geopackage' }
   | { type: 'zoomRange' }
   | { type: 'zoomCount'; zoom: number }
   | { type: 'tilePage'; zoom: number; start: number; count: number; total: number }

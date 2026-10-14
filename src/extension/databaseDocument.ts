@@ -4,6 +4,7 @@ import type {
   CopyRange,
   DatabaseHeader,
   FullCell,
+  GeoPackageSummary,
   MbtilesSummary,
   MetadataState,
   ObjectDetails,
@@ -141,6 +142,10 @@ export class DatabaseDocument implements vscode.CustomDocument, DatabaseBackend 
 
   async mbtiles(): Promise<MbtilesSummary> {
     return (await this.open()).mbtiles();
+  }
+
+  async geopackage(): Promise<GeoPackageSummary> {
+    return (await this.open()).geopackage();
   }
 
   /** Counts tiles by zoom level in the background, each level as it's counted. */

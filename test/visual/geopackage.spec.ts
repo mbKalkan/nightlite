@@ -61,3 +61,32 @@ test('names points and lines, and steps through views with the arrow keys', asyn
   await expect(page.getByRole('radio', { name: 'Geometry' })).toBeFocused();
   expect(viewer.problems).toEqual([]);
 });
+
+for (const theme of ['dark', 'light'] as const) {
+  test(`lists a GeoPackage's contents on its overview (${theme})`, async ({ page }) => {
+    const viewer = await openViewer(page, theme);
+    await viewer.load('sample.gpkg');
+    const contents = page.locator('.nl-geopackage');
+    await expect(contents.locator('.nl-heading').first()).toHaveText('Contents GeoPackage 1.3');
+    const rows = contents.locator('.nl-contents-row:not(.nl-contents-head)');
+    await expect(rows).toHaveCount(5);
+    await expect(rows.nth(1)).toHaveText(
+      /^Regionsregions\s*Features\s*MULTIPOLYGON · geom\s*EPSG:4326\s*2\s*26, 36 – 33, 42$/,
+    );
+    await expect(rows.nth(3)).toContainText('Tiles');
+    await expect(rows.nth(3)).toContainText('zoom 0–1');
+    await expect(rows.nth(3)).toContainText('EPSG:3857');
+    await expect(rows.nth(3)).toContainText('5');
+    await expect(rows.nth(4)).toContainText('Attributes');
+    await expect(contents.locator('.nl-extensions')).toHaveText('gpkg_rtree_index on regions.geom');
+    await page.screenshot({ path: `${SCREENS}/geopackage-${theme}.png` });
+
+    // A name opens its table.
+    await rows.nth(2).getByRole('button', { name: 'Routes' }).click();
+    await expect(page.locator('.nl-tree-item[aria-selected="true"]')).toHaveAttribute(
+      'data-key',
+      'table:routes',
+    );
+    expect(viewer.problems).toEqual([]);
+  });
+}

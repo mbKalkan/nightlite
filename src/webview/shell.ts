@@ -10,6 +10,7 @@ import type {
 import { isPlain, type RowView } from '../shared/rowFilter';
 import { DataView, type DataViewOptions, type RunMessage } from './dataView';
 import { DatabaseOverview, listedTables, type TablesState } from './databaseOverview';
+import type { GeoPackageState } from './geopackageContents';
 import type { GridPosition } from './grid/dataGrid';
 import { icons } from './icons';
 import { MbtilesView, countsComplete, type TilesState } from './mbtiles/summary';
@@ -91,6 +92,8 @@ export class Shell {
   private readonly tileView: TileView;
   /** A database's tables as counted for its overview, kept while other pages are shown. */
   private tables: TablesState | undefined;
+  /** A GeoPackage's contents, kept likewise. */
+  private geopackage: GeoPackageState | undefined;
   private overview: DatabaseOverview | undefined;
   /** Objects' columns, indexes and foreign keys, by name, as the host sent them. */
   private details = new Map<string, DetailsMessage>();
@@ -183,6 +186,7 @@ export class Shell {
     this.file = { info, locale, strings };
     this.tiles = undefined;
     this.tables = undefined;
+    this.geopackage = undefined;
     this.setFileName(info.fileName);
     this.sidebar.setAttribute('aria-label', strings.databaseObjects);
     this.tabs.setAttribute('aria-label', strings.pageTabs);
@@ -308,6 +312,16 @@ export class Shell {
   exportRows(): void {
     if (this.shown === 'query') this.queryPage?.exportRows();
     else this.data?.exportRows();
+  }
+
+  /** A GeoPackage's contents, or why they couldn't be read. */
+  geopackageMessage(
+    message: Extract<HostToWebviewMessage, { type: 'geopackage' | 'geopackageError' }>,
+  ): void {
+    if (!this.geopackage) return;
+    if (message.type === 'geopackage') this.geopackage.summary = message.summary;
+    else this.geopackage.error = { error: message.error, detail: message.detail };
+    this.overview?.renderGeoPackage();
   }
 
   /** Sort Ascending, Sort Descending or Clear Sort, from the context menu. */
@@ -491,6 +505,11 @@ export class Shell {
     }
     if (this.tree && !this.schemaError) {
       this.tables ??= { counts: new Map(), counting: false };
+      const geopackage = info.format === 'geopackage';
+      if (geopackage && !this.geopackage) {
+        this.geopackage = {};
+        this.events.send({ type: 'geopackage' });
+      }
       this.overview = new DatabaseOverview(
         info,
         locale,
@@ -498,6 +517,7 @@ export class Shell {
         [...this.objects.values()],
         this.tables,
         (name) => this.reveal(name),
+        geopackage ? this.geopackage : undefined,
       );
       this.content.replaceChildren(this.overview.element);
       this.countTables();

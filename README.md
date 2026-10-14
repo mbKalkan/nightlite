@@ -97,6 +97,17 @@ tileset opens at once.
 - Arrow keys move to the neighboring tiles, <kbd>+</kbd> and <kbd>−</kbd> between zoom levels;
   rows numbered as in tile URLs (XYZ) or as MBTiles stores them (TMS)
 
+### GeoPackage
+
+![A GeoPackage's contents in Nightlite: feature, tile and attribute tables with their geometry, SRS and bounds](docs/images/geopackage-dark.png)
+
+- The GeoPackage's contents on its overview: each feature, tile and attribute table with its
+  geometry type or zoom levels, its spatial reference system, rows and bounds, and the
+  extensions in use
+- Geometries say what they are in the grid (`MULTIPOLYGON`, `POINT Z`), and the cell details
+  draw them, or show them as WKT, with their SRS and number of points
+- Tiles in a tile table show as images in the cell details
+
 ### Everywhere
 
 - Dark, light and high contrast themes
@@ -127,6 +138,8 @@ Nightlite opens any SQLite file, whatever its name: right-click it and choose
 | Extend the selection                  | <kbd>Shift</kbd> with any of the above                                                  |
 | Select all                            | <kbd>Ctrl</kbd>+<kbd>A</kbd>                                                            |
 | Copy                                  | <kbd>Ctrl</kbd>+<kbd>C</kbd>                                                            |
+| Search rows                           | <kbd>Ctrl</kbd>+<kbd>F</kbd>                                                            |
+| Run a query                           | <kbd>Ctrl</kbd>+<kbd>Enter</kbd> (<kbd>Escape</kbd> stops it)                           |
 | Show the cell in full                 | <kbd>Enter</kbd> (<kbd>Escape</kbd> goes back to the grid)                              |
 | Move to a neighboring tile            | Arrow keys, in the tile browser                                                         |
 | Zoom in or out a level                | <kbd>+</kbd> / <kbd>−</kbd>, in the tile browser                                        |
@@ -139,8 +152,10 @@ On macOS, use <kbd>Cmd</kbd> in place of <kbd>Ctrl</kbd>.
 - Nightlite changes nothing but an MBTiles tileset's metadata, and that only when you save. Rows,
   tiles and schemas are read-only.
 - **Save As** isn't available for a tileset's metadata: saving writes it into the file itself.
-- There's no SQL query box, sorting or filtering yet.
+- Queries run only statements that read. A query's results hold up to 100,000 rows in the grid
+  (Export Rows… writes all of them), and a table sorted or filtered up to ten million.
 - A copy holds up to a million rows or 16 MB.
+- GeoPackage tile tables show their tiles one at a time, in the cell details; there's no map.
 - Files have to be on a disk VS Code's extension host can reach, locally or in a remote window;
   virtual file systems aren't supported.
 - Encrypted databases (SQLCipher) can't be opened.
