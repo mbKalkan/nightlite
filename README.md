@@ -46,7 +46,8 @@ tileset opens at once.
 - Select cells as in a spreadsheet, with the mouse or the keyboard; the status bar shows the
   selected cell's storage class and value
 - <kbd>Ctrl</kbd>+<kbd>C</kbd> copies the selection with full values, even where the grid cuts them
-  short: one cell as it is, more as tab-separated text that spreadsheets paste into columns
+  short: one cell as it is, more as tab-separated text that spreadsheets paste into columns.
+  **Copy as Markdown Table**, in the context menu, copies it as a table for a README or an issue
 - Cell details beside the grid: JSON indented and colored, long text in full, BLOBs as the image
   or text they hold, or as a hex dump
 - The schema of each table: columns, indexes and foreign keys, and the statement that created it

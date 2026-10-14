@@ -375,6 +375,12 @@ export interface RevealMessage {
   name: string;
 }
 
+/** Copy or Copy as Markdown Table, from the context menu or the Command Palette. */
+export interface CopySelectionMessage {
+  type: 'copySelection';
+  markdown: boolean;
+}
+
 /** A table's or view's columns and row estimate, answering `openObject`. */
 export interface ObjectInfoMessage {
   type: 'objectInfo';
@@ -414,6 +420,8 @@ export interface CopyRange {
   total: number;
   firstColumn: number;
   lastColumn: number;
+  /** As a Markdown table headed by the column names, instead of tab-separated text. */
+  markdown?: boolean;
 }
 
 /** How much a copy put on the clipboard. */
@@ -616,6 +624,7 @@ export type HostToWebviewMessage =
   | SchemaMessage
   | SchemaErrorMessage
   | RevealMessage
+  | CopySelectionMessage
   | ObjectInfoMessage
   | RowCountMessage
   | RowPageMessage

@@ -288,6 +288,41 @@ test('reaches any of ten million rows at once', async ({ page }) => {
   expect(viewer.problems).toEqual([]);
 });
 
+test('copies from the context menu, also as a Markdown table', async ({ page }) => {
+  const viewer = await openViewer(page, 'dark');
+  await viewer.load('sample.sqlite');
+  await open(page, 'table:value_kinds');
+  // VS Code reads the menu's items from here.
+  expect(JSON.parse((await grid(page).getAttribute('data-vscode-context')) ?? '')).toEqual({
+    webviewSection: 'grid',
+    preventDefaultContextMenuItems: true,
+  });
+
+  // A right click inside the selection keeps it; outside, it selects the cell it's on.
+  await cell(page, '1', 1).click();
+  await cell(page, '3', 2).click({ modifiers: ['Shift'] });
+  await cell(page, '2', 2).click({ button: 'right' });
+  await expect(status(page)).toHaveText('3 rows × 2 columns');
+  await viewer.post({ type: 'copySelection', markdown: true });
+  await expect(note(page)).toHaveText('Copied 3 rows.');
+  expect(viewer.clipboard.at(-1)).toBe(
+    [
+      '| label            | value |',
+      '| ---------------- | ----: |',
+      '| integer          |    42 |',
+      '| negative integer |    -7 |',
+      '| whole real       |  42.0 |',
+    ].join('\n'),
+  );
+
+  await cell(page, '5', 1).click({ button: 'right' });
+  await expect(grid(page)).toBeFocused();
+  await viewer.post({ type: 'copySelection', markdown: false });
+  await expect(note(page)).toHaveText('Copied the value.');
+  expect(viewer.clipboard.at(-1)).toBe('real');
+  expect(viewer.problems).toEqual([]);
+});
+
 const detail = (page: Page) => page.locator('.nl-detail');
 const detailToggle = (page: Page) => page.locator('.nl-detail-toggle');
 const facts = (page: Page) => page.locator('.nl-detail-facts');

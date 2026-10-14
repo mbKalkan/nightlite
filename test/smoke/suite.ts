@@ -217,9 +217,11 @@ const tests: Record<string, () => Promise<void>> = {
     assert.equal(existsSync(`${file}-shm`), false);
   },
 
-  async 'registers Go to Table'() {
+  async 'registers its commands'() {
     const commands = await vscode.commands.getCommands(true);
-    assert.ok(commands.includes('nightlite.goToTable'));
+    for (const command of ['nightlite.goToTable', 'nightlite.copy', 'nightlite.copyAsMarkdown']) {
+      assert.ok(commands.includes(command), command);
+    }
   },
 
   async 'opens a file that is not a database without failing'() {

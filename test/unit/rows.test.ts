@@ -202,6 +202,27 @@ describe('TableReader.copy', () => {
     expect(block).toMatchObject({ rows: 4, cells: 8, stopped: false });
   });
 
+  it('copies a block as a Markdown table, numbers to the right', () => {
+    const reader = new TableReader(sample, 'value_kinds');
+    expect(reader.copy({ ...range(0, 3, 1, 2), markdown: true }).text).toBe(
+      [
+        '| label            | value |',
+        '| ---------------- | ----: |',
+        '| integer          |    42 |',
+        '| negative integer |    -7 |',
+        '| whole real       |  42.0 |',
+      ].join('\n'),
+    );
+    // One cell is a table too; a line break can't be in one, so it becomes <br>.
+    expect(reader.copy({ ...range(9, 1, 2), markdown: true }).text).toBe(
+      [
+        `| value${' '.repeat(33)} |`,
+        `| ${'-'.repeat(38)} |`,
+        '| first line<br>second line<br>\tindented |',
+      ].join('\n'),
+    );
+  });
+
   it('copies the rows the grid shows, even after a far jump', () => {
     const reader = new TableReader(sample, 'events');
     const page = reader.page(2500, 100, 5000);

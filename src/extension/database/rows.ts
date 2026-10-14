@@ -16,6 +16,8 @@ import {
   IMAGE_PREVIEW,
   imageKind,
   looksLikeText,
+  markdownCell,
+  markdownTable,
   realText,
   tsvField,
 } from '../../shared/values';
@@ -189,8 +191,11 @@ export class TableReader {
     statement.setReadBigInts(true);
     statement.setReturnArrays(true);
 
-    const single = range.count === 1 && columns.length === 1;
-    const lines: string[] = [];
+    const { markdown = false } = range;
+    const single = range.count === 1 && columns.length === 1 && !markdown;
+    const lines: string[][] = [];
+    // A Markdown table aligns a column of numbers to the right.
+    const numbers = columns.map(() => ({ some: false, only: true }));
     let size = 0;
     let stopped = false;
     let cut = false;
@@ -204,23 +209,28 @@ export class TableReader {
         const kind = row[c * 3] as string;
         const text = copyText(kind, row[c * 3 + 1]);
         cut ||= Number(row[c * 3 + 2]) > (kind === 'blob' ? COPY_LIMIT / 2 : COPY_LIMIT);
-        fields.push(single ? text : tsvField(text));
+        fields.push(markdown ? markdownCell(text) : single ? text : tsvField(text));
+        if (kind === 'integer' || kind === 'real') numbers[c].some = true;
+        else if (kind !== 'null') numbers[c].only = false;
       }
-      const line = fields.join('\t');
-      if (lines.length > 0 && size + line.length > COPY_LIMIT) {
+      const length = fields.reduce((sum, field) => sum + field.length, 0);
+      const line = markdown ? length + 3 * fields.length + 1 : length + fields.length - 1;
+      if (lines.length > 0 && size + line > COPY_LIMIT) {
         stopped = true;
         break;
       }
-      lines.push(line);
-      size += line.length + 1;
+      lines.push(fields);
+      size += line + 1;
     }
-    return {
-      text: lines.join('\n'),
-      rows: lines.length,
-      cells: lines.length * columns.length,
-      stopped,
-      cut,
-    };
+    const text = markdown
+      ? markdownTable(
+          columns.map((column) => column.name),
+          lines,
+          numbers.map(({ some, only }) => some && only),
+          COPY_LIMIT,
+        )
+      : lines.map((fields) => fields.join('\t')).join('\n');
+    return { text, rows: lines.length, cells: lines.length * columns.length, stopped, cut };
   }
 
   /**
