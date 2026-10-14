@@ -1,15 +1,114 @@
 # Nightlite
 
-> **Status:** early development — not yet published.
+[![CI](https://github.com/mbKalkan/nightlite/actions/workflows/ci.yml/badge.svg)](https://github.com/mbKalkan/nightlite/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-A fast, dark-first, **read-only** viewer for SQLite files inside VS Code: SQLite databases,
-MBTiles and GeoPackages.
+**Browse SQLite databases, MBTiles and GeoPackages in VS Code, even when they're tens of
+gigabytes.**
 
-- **Built for big files.** Nothing is loaded whole: tables open instantly even in files of tens of
-  gigabytes, and only the rows on screen are read.
+Nightlite is a fast, dark-first, read-only viewer for SQLite files: app databases (`.sqlite`,
+`.sqlite3`, `.db`, `.db3`), MBTiles tilesets (`.mbtiles`) and GeoPackages (`.gpkg`). It reads only
+the rows on screen, so a table of ten million rows scrolls as smoothly as one of ten, and a 24 GB
+tileset opens at once.
+
+> **Preview.** Nightlite is in early development and not published yet.
+
+![A table of ten million rows in Nightlite, scrolled halfway down, with a cell selected and its value in the status bar](docs/images/rows-dark.png)
+
+## Why Nightlite
+
+- **Built for big files.** Nothing is loaded whole. Any row of any table is a click or a key
+  away, rows are counted in the background, and memory stays flat however far you scroll.
+- **Made for MBTiles.** A tileset opens on a summary: tiles by zoom level, vector layers and their
+  fields, and its metadata checked against the MBTiles spec.
+- **Exact.** Values show as SQLite stores them: integers beyond 2^53 keep every digit, a `REAL`
+  keeps its decimal point, `NULL` stands apart from text, and BLOBs say what they hold.
 - **Dark-first.** Follows your VS Code theme, including high contrast.
-- **Read-only and private.** Files are never written to. No telemetry, no network access.
+- **Read-only and private.** Databases are opened read-only and nothing is written next to them,
+  not even a `-wal` or `-shm` file. No telemetry, no network access.
+
+## Features
+
+### Databases
+
+![A JSON value from a table shown indented and colored in Nightlite's cell details panel](docs/images/cell-details-dark.png)
+
+- An overview of the database: its tables with their rows and columns, drawn to scale, and how
+  many views, indexes and triggers it holds
+- A sidebar of tables, views, indexes and triggers; **Go to Table…**
+  (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd>) finds one as you type
+- A grid that scrolls through millions of rows and jumps anywhere at once, with rowids, column
+  types and primary keys in view
+- Select cells as in a spreadsheet, with the mouse or the keyboard; the status bar shows the
+  selected cell's storage class and value
+- <kbd>Ctrl</kbd>+<kbd>C</kbd> copies the selection with full values, even where the grid cuts them
+  short: one cell as it is, more as tab-separated text that spreadsheets paste into columns
+- Cell details beside the grid: JSON indented and colored, long text in full, BLOBs as a hex dump
+- The schema of each table: columns, indexes and foreign keys, and the statement that created it
+- When another program changes the file, the view reloads and keeps your place
+
+![A table's columns, indexes and foreign keys on Nightlite's Schema page](docs/images/schema-dark.png)
+
+### MBTiles
+
+![An MBTiles tileset's summary in Nightlite: tiles by zoom level, vector layers and metadata](docs/images/mbtiles-dark.png)
+
+- The tileset's name, description and kind (vector or raster tiles) at the top
+- Tiles by zoom level, counted in the background and drawn to scale
+- Vector layers with their fields and types, zoom levels and, where the tileset records them,
+  feature counts and geometry
+- The metadata as the MBTiles 1.3 spec reads it, with missing or unreadable keys, and zoom levels
+  the tiles contradict, pointed out
+- Deduplicated tilesets, where `tiles` is a view over shared images, are recognized
+
+### Everywhere
+
+- Dark, light and high contrast themes
+- Keyboard and screen reader support
+- English and Turkish
+
+## Getting started
+
+1. Install **Nightlite** from the Extensions view.
+2. Open a `.sqlite`, `.sqlite3`, `.db`, `.db3`, `.mbtiles` or `.gpkg` file. Nightlite is the
+   default viewer for these files.
+
+Nightlite opens any SQLite file, whatever its name: right-click it and choose
+**Open With… › Nightlite**. A file that turns out not to be a SQLite database offers
+**Reopen With…** to pick another editor.
+
+## Keyboard shortcuts
+
+| Action                                | Windows / Linux                                                                         |
+| ------------------------------------- | --------------------------------------------------------------------------------------- |
+| Go to a table, view, index or trigger | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd>                                           |
+| Move the selected cell                | Arrow keys, <kbd>Page Up</kbd> / <kbd>Page Down</kbd>, <kbd>Home</kbd> / <kbd>End</kbd> |
+| First or last row or column           | <kbd>Ctrl</kbd>+arrow keys, <kbd>Ctrl</kbd>+<kbd>Home</kbd> / <kbd>End</kbd>            |
+| Extend the selection                  | <kbd>Shift</kbd> with any of the above                                                  |
+| Select all                            | <kbd>Ctrl</kbd>+<kbd>A</kbd>                                                            |
+| Copy                                  | <kbd>Ctrl</kbd>+<kbd>C</kbd>                                                            |
+| Show the cell in full                 | <kbd>Enter</kbd> (<kbd>Escape</kbd> goes back to the grid)                              |
+
+On macOS, use <kbd>Cmd</kbd> in place of <kbd>Ctrl</kbd>.
+
+## Limitations
+
+- Nightlite is read-only: it doesn't change data. Editing an MBTiles tileset's metadata is
+  planned.
+- There's no SQL query box, sorting or filtering yet.
+- Tiles aren't previewed yet; a tile browser is planned.
+- A copy holds up to a million rows or 16 MB.
+- Files have to be on a disk VS Code's extension host can reach, locally or in a remote window;
+  virtual file systems aren't supported.
+- Encrypted databases (SQLCipher) can't be opened.
+- Requires VS Code 1.103 or later.
+
+## Contributing
+
+Bug reports and ideas are welcome in [issues](https://github.com/mbKalkan/nightlite/issues). See
+[CONTRIBUTING.md](CONTRIBUTING.md) to build and test the extension.
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). Third-party components and their licenses are listed in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

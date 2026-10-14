@@ -1,0 +1,55 @@
+name: Bug report
+description: Something doesn't look or work right
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you expected and what you saw. A screenshot helps a lot.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open a .mbtiles file with …
+        2. …
+  - type: dropdown
+    id: format
+    attributes:
+      label: File type
+      options:
+        - SQLite database (.sqlite, .sqlite3, .db, .db3)
+        - MBTiles (.mbtiles)
+        - GeoPackage (.gpkg)
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: size
+    attributes:
+      label: File size
+      description: Roughly; some problems only show in big files.
+      placeholder: 2.5 GB
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Nightlite, VS Code and OS versions (Help › About in VS Code shows the last two).
+      placeholder: Nightlite 0.1.0, VS Code 1.103.0, Windows 11
+    validations:
+      required: true
+  - type: input
+    id: theme
+    attributes:
+      label: Color theme
+      placeholder: Dark Modern
+  - type: textarea
+    id: file
+    attributes:
+      label: Sample file
+      description: >-
+        If you can, attach a small file that shows the problem. Please remove anything private
+        first.

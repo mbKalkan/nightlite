@@ -162,7 +162,8 @@
     "package.nls*.json",
     "LICENSE",
     "README.md",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "scripts": {
     "build": "node scripts/build.mjs",
@@ -177,6 +178,7 @@
     "fixtures": "node scripts/gen-fixtures.mjs",
     "fixtures:large": "node scripts/gen-fixtures.mjs --large",
     "corpus": "node scripts/fetch-corpus.mjs",
+    "screenshots": "node scripts/build.mjs && node scripts/screenshots.mjs",
     "package": "vsce package --no-dependencies",
     "vscode:prepublish": "node scripts/build.mjs --production"
   },

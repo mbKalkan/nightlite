@@ -623,7 +623,8 @@ export class DataGrid {
 
   private setWidths(widths: number[]): void {
     this.widths = widths.map((width) =>
-      Math.round(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, width + 16))),
+      // Padding on both sides, the border on the right, and a pixel for rounding.
+      Math.round(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, width + 18))),
     );
     let total = Math.round(this.rowHeaderWidth);
     this.widths.forEach((width, c) => {
