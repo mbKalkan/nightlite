@@ -317,6 +317,22 @@ export interface ViewerStrings {
   featureId: string;
   noAttributes: string;
   saveTile: string;
+  /** A GeoPackage's contents (D-024). */
+  contentsHeading: string;
+  kindColumn: string;
+  detailsColumn: string;
+  srsColumn: string;
+  boundsColumn: string;
+  featuresKind: string;
+  tilesKind: string;
+  attributesKind: string;
+  undefinedSrs: string;
+  geopackageVersion: string;
+  extensionsHeading: string;
+  extensionOn: string;
+  noContents: string;
+  noContentsTable: string;
+  geopackageErrorTitle: string;
   /** Export Rows… (D-023). */
   exportRows: string;
   exportHint: string;
@@ -423,6 +439,38 @@ export interface RevealMessage {
 /** Open SQL Query, from the Command Palette. */
 export interface OpenQueryMessage {
   type: 'openQuery';
+}
+
+/** One table a GeoPackage lists in gpkg_contents, with what the tables beside it say (D-024). */
+export interface GeoPackageContent {
+  table: string;
+  /** `features`, `tiles`, `attributes`, or an extension's own kind. */
+  dataType: string;
+  identifier: string | null;
+  description: string | null;
+  /** minX, minY, maxX, maxY, in the units of the SRS. */
+  bounds: [number, number, number, number] | null;
+  srs: { id: number; name: string; organization: string | null; code: number | null } | null;
+  geometry: { column: string; type: string; z: number; m: number } | null;
+  zooms: { min: number; max: number } | null;
+}
+
+export interface GeoPackageSummary {
+  /** Null when the file has no gpkg_contents table. */
+  contents: GeoPackageContent[] | null;
+  extensions: { table: string | null; column: string | null; name: string; scope: string | null }[];
+}
+
+/** A GeoPackage's contents, answering `geopackage`. */
+export interface GeoPackageMessage {
+  type: 'geopackage';
+  summary: GeoPackageSummary;
+}
+
+export interface GeoPackageErrorMessage {
+  type: 'geopackageError';
+  error: DatabaseError;
+  detail: string;
 }
 
 /** What to export: a table's or view's rows as shown, sorted and filtered, or a query's rows. */
@@ -757,7 +805,9 @@ export type HostToWebviewMessage =
   | MetadataErrorMessage
   | QueryProgressMessage
   | QueryResultMessage
-  | QueryErrorMessage;
+  | QueryErrorMessage
+  | GeoPackageMessage
+  | GeoPackageErrorMessage;
 
 export type WebviewToHostMessage =
   | { type: 'ready' }
@@ -794,6 +844,8 @@ export type WebviewToHostMessage =
   | { type: 'tableSummaries'; names: string[] }
   /** Asks for an MBTiles file's metadata. */
   | { type: 'mbtiles' }
+  /** Asks for a GeoPackage's contents. */
+  | { type: 'geopackage' }
   /** Starts counting tiles by zoom level, leaving out levels already counted. */
   | { type: 'zoomCounts'; skip: number[] }
   /** Asks for `count` tiles of a zoom level from position `start`; `total` is its tile count. */

@@ -4,6 +4,7 @@ import { basename, extname, isAbsolute, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type { Page } from '@playwright/test';
 import { readDetails } from '../../src/extension/database/details';
+import { readGeoPackage } from '../../src/extension/database/geopackage';
 import {
   readMbtiles,
   readMetadataRows,
@@ -213,6 +214,7 @@ export async function openViewer(page: Page, theme: ThemeName) {
           }
         },
         mbtiles: async () => readMbtiles(connection()),
+        geopackage: async () => readGeoPackage(connection()),
         zoomCounts: async (skip, onRange, onCount) => {
           if (!database?.count) return new Promise<void>(() => {});
           const range = zoomRange(connection());

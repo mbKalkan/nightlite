@@ -250,5 +250,17 @@
   "Export Rows…": "Satırları Dışa Aktar…",
   "Export the rows as shown to a CSV or JSON file": "Satırları gösterildiği gibi bir CSV ya da JSON dosyasına aktar",
   "Geometry": "Geometri",
-  "SRS {0}": "SRS {0}"
+  "SRS {0}": "SRS {0}",
+  "Contents": "İçerik",
+  "Kind": "Tür",
+  "Details": "Ayrıntı",
+  "SRS": "SRS",
+  "Attributes": "Öznitelikler",
+  "Undefined": "Tanımsız",
+  "GeoPackage {0}": "GeoPackage {0}",
+  "Extensions": "Uzantılar",
+  "{0} on {1}": "{1} üzerinde {0}",
+  "This GeoPackage lists no contents.": "Bu GeoPackage içerik listelemiyor.",
+  "This file has no gpkg_contents table, so it isn't a GeoPackage as the standard has it.": "Bu dosyada gpkg_contents tablosu yok; standarda göre bir GeoPackage değil.",
+  "The GeoPackage's contents couldn't be read": "GeoPackage içeriği okunamadı"
 }

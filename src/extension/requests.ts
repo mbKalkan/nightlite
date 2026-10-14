@@ -2,6 +2,7 @@ import type {
   CopyRange,
   ExportSource,
   FullCell,
+  GeoPackageSummary,
   HostToWebviewMessage,
   MbtilesSummary,
   MetadataState,
@@ -36,6 +37,7 @@ export interface DatabaseBackend {
     onSummary: (name: string, summary: TableSummary | null) => void,
   ): Promise<void>;
   mbtiles(): Promise<MbtilesSummary>;
+  geopackage(): Promise<GeoPackageSummary>;
   /** Slow on big tilesets; dropped when another count starts. */
   zoomCounts(
     skip: number[],
@@ -132,6 +134,13 @@ export async function answer(
         await post({ type: 'mbtiles', summary: await backend.mbtiles() });
       } catch (error) {
         await post({ type: 'mbtilesError', ...classifyDatabaseError(error) });
+      }
+      return;
+    case 'geopackage':
+      try {
+        await post({ type: 'geopackage', summary: await backend.geopackage() });
+      } catch (error) {
+        await post({ type: 'geopackageError', ...classifyDatabaseError(error) });
       }
       return;
     case 'tableSummaries': {

@@ -3,6 +3,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { parentPort } from 'node:worker_threads';
 import { readDetails } from './details';
+import { readGeoPackage } from './geopackage';
 import { readMbtiles, readMetadataRows, zoomCount, zoomRange } from './mbtiles';
 import { writeMetadata } from './metadataWrite';
 import { ExportRun, exportStatement } from './exportRows';
@@ -50,6 +51,8 @@ function handle(call: WorkerCall): unknown {
     }
     case 'mbtiles':
       return readMbtiles(connection());
+    case 'geopackage':
+      return readGeoPackage(connection());
     case 'zoomRange':
       return zoomRange(connection());
     case 'zoomCount':
