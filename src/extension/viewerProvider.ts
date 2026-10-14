@@ -7,6 +7,7 @@ import { readFileHeader } from './fileHeader';
 import { saveErrorMessage } from './saveErrors';
 import { watchDatabase } from './fileWatcher';
 import { pickObject } from './objectPicker';
+import { QuerySession } from './querySession';
 import { answer } from './requests';
 import { saveTile } from './saveTile';
 import { viewerStrings } from './strings';
@@ -41,6 +42,7 @@ export class ViewerProvider implements vscode.CustomEditorProvider<DatabaseDocum
         supportsMultipleEditorsPerDocument: true,
       }),
       vscode.commands.registerCommand('nightlite.goToTable', () => provider.goToObject()),
+      vscode.commands.registerCommand('nightlite.openQuery', () => provider.openQuery()),
       vscode.commands.registerCommand('nightlite.copy', () => provider.copySelection(false)),
       vscode.commands.registerCommand('nightlite.copyAsMarkdown', () =>
         provider.copySelection(true),
@@ -139,6 +141,12 @@ export class ViewerProvider implements vscode.CustomEditorProvider<DatabaseDocum
 
     const editor: Editor = { panel, document };
     const post = (message: HostToWebviewMessage) => panel.webview.postMessage(message);
+    // A query's results hold whatever the file changes to since, so they're posted regardless.
+    const queries = new QuerySession(
+      () => document.queryConnection(),
+      post,
+      (text) => vscode.env.clipboard.writeText(text),
+    );
     const subscriptions = [
       panel.webview.onDidReceiveMessage((message: WebviewToHostMessage) => {
         if (message.type === 'ready') {
@@ -150,17 +158,23 @@ export class ViewerProvider implements vscode.CustomEditorProvider<DatabaseDocum
           const generation = document.generation;
           const current = (reply: HostToWebviewMessage) =>
             document.generation === generation ? post(reply) : Promise.resolve(false);
-          void answer(message, document, current, {
-            writeClipboard: (text) => vscode.env.clipboard.writeText(text),
-            saveTile: (name, stored) => saveTile(document.uri, name, stored),
-            onMetadataEdit: (edit) =>
-              this.edits.fire({
-                document,
-                label: vscode.l10n.t('Edit Metadata'),
-                undo: () => edit.undo(),
-                redo: () => edit.redo(),
-              }),
-          });
+          void answer(
+            message,
+            document,
+            current,
+            {
+              writeClipboard: (text) => vscode.env.clipboard.writeText(text),
+              saveTile: (name, stored) => saveTile(document.uri, name, stored),
+              onMetadataEdit: (edit) =>
+                this.edits.fire({
+                  document,
+                  label: vscode.l10n.t('Edit Metadata'),
+                  undo: () => edit.undo(),
+                  redo: () => edit.redo(),
+                }),
+            },
+            queries,
+          );
         }
       }),
       document.onReset(() => void this.load(document, post)),
@@ -170,6 +184,7 @@ export class ViewerProvider implements vscode.CustomEditorProvider<DatabaseDocum
     this.track(editor);
     panel.onDidDispose(() => {
       subscriptions.forEach((subscription) => subscription.dispose());
+      queries.dispose();
       if (this.active === editor) {
         this.active = undefined;
       }
@@ -229,6 +244,13 @@ export class ViewerProvider implements vscode.CustomEditorProvider<DatabaseDocum
     } catch (error) {
       await post({ type: 'schemaError', ...classifyDatabaseError(error) });
     }
+  }
+
+  /** Shows the query page, with the keyboard in its statement. */
+  private openQuery(): void {
+    void this.active?.panel.webview.postMessage({
+      type: 'openQuery',
+    } satisfies HostToWebviewMessage);
   }
 
   /** Copies the selected cells of the grid in view, as the grid's own Ctrl+C does. */

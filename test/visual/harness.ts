@@ -11,6 +11,7 @@ import {
   zoomRange,
 } from '../../src/extension/database/mbtiles';
 import { writeMetadata } from '../../src/extension/database/metadataWrite';
+import { QueryRun } from '../../src/extension/database/query';
 import { TableReader } from '../../src/extension/database/rows';
 import { readSchema } from '../../src/extension/database/schema';
 import { READ_OPTIONS, connectionTarget } from '../../src/extension/database/target';
@@ -18,6 +19,7 @@ import { TileLister, readStoredTile, readTile } from '../../src/extension/databa
 import { readFileHeader } from '../../src/extension/fileHeader';
 import { MetadataEdits, type MetadataEdit } from '../../src/extension/metadataEdits';
 import { tileBytes } from '../../src/extension/tileFile';
+import { QuerySession, type QueryConnection } from '../../src/extension/querySession';
 import { answer } from '../../src/extension/requests';
 import { viewerStrings } from '../../src/extension/strings';
 import { buildWebviewHtml } from '../../src/extension/webviewHtml';
@@ -60,6 +62,44 @@ export interface HostOptions {
 }
 
 /**
+ * A query's connection as the worker has it, in this process: the same QueryRun. With a
+ * `pause`, each step waits that long and reads one row, so a test can stop a query running.
+ */
+function queryConnection(target: string, pause: () => number): QueryConnection {
+  const db = new DatabaseSync(target, READ_OPTIONS);
+  db.exec('PRAGMA query_only = ON');
+  let run: QueryRun | undefined;
+  let open = true;
+  const running = () => {
+    if (!run || !open) throw new Error('No query has run');
+    return run;
+  };
+  const later = <T>(work: () => T) =>
+    new Promise<T>((resolve, reject) =>
+      setTimeout(() => {
+        try {
+          if (!open) throw new Error('The database was closed');
+          resolve(work());
+        } catch (error) {
+          reject(error);
+        }
+      }, pause()),
+    );
+  return {
+    queryStart: async (sql) => (run = new QueryRun(db, sql)).info,
+    queryStep: (ms) => later(() => running().step(pause() ? 0 : ms)),
+    queryStop: async () => running().stop(),
+    queryRows: async (start, count) => running().page(start, count),
+    queryCopy: async (range) => running().copy(range),
+    queryCell: async (row, column) => running().cell(row, column),
+    dispose: () => {
+      open = false;
+      db.close();
+    },
+  };
+}
+
+/**
  * Loads the built webview (dist/webview) the way VS Code does: same HTML, same CSP,
  * a stubbed `acquireVsCodeApi`, and theme variables on the root element. Requests for rows go
  * to a stand-in extension host that answers from the fixture with the extension's own code.
@@ -75,6 +115,7 @@ export async function openViewer(page: Page, theme: ThemeName) {
         listers: Map<number, TileLister>;
         count: boolean;
         path: string;
+        wal: boolean;
         metadata: MetadataEdits;
       }
     | undefined;
@@ -130,6 +171,22 @@ export async function openViewer(page: Page, theme: ThemeName) {
     return database.metadata;
   };
   const postMetadata = () => post({ type: 'metadataState', state: metadata().state() });
+  /** How long each step of a query waits, so a test can catch one running. */
+  let queryPause = 0;
+  const queries = new QuerySession(
+    () => {
+      if (!database) throw new Error('No database loaded');
+      const { path, wal } = database;
+      return {
+        connection: queryConnection(connectionTarget(path, wal), () => queryPause),
+        opened: Promise.resolve(),
+      };
+    },
+    post,
+    async (text) => {
+      clipboard.push(text);
+    },
+  );
   hosts.set(page, (message: WebviewToHostMessage) =>
     answer(
       message,
@@ -184,6 +241,7 @@ export async function openViewer(page: Page, theme: ThemeName) {
           redoStack.length = 0;
         },
       },
+      queries,
     ),
   );
   if (!exposed.has(page)) {
@@ -193,6 +251,7 @@ export async function openViewer(page: Page, theme: ThemeName) {
     );
   }
   page.on('close', () => {
+    queries.dispose();
     database?.db.close();
     for (const folder of copies) rmSync(folder, { recursive: true, force: true });
   });
@@ -313,6 +372,7 @@ export async function openViewer(page: Page, theme: ThemeName) {
         listers: new Map(),
         count,
         path,
+        wal: result.file.header.wal,
         metadata: new MetadataEdits(),
       };
       await this.post({ type: 'schema', objects: readSchema(db) });
@@ -352,5 +412,9 @@ export async function openViewer(page: Page, theme: ThemeName) {
       );
     },
     sent: () => page.evaluate(() => (window as unknown as { __sent: { type: string }[] }).__sent),
+    /** Makes each step of a query wait this long and read one row, to catch one running. */
+    slowQueries(ms: number) {
+      queryPause = ms;
+    },
   };
 }

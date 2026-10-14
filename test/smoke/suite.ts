@@ -9,6 +9,8 @@ import { DatabaseClient } from '../../src/extension/database/client';
 import { connectionTarget } from '../../src/extension/database/target';
 import { DatabaseDocument } from '../../src/extension/databaseDocument';
 import { watchDatabase } from '../../src/extension/fileWatcher';
+import { QuerySession } from '../../src/extension/querySession';
+import type { HostToWebviewMessage } from '../../src/shared/protocol';
 
 const EXTENSION_ID = 'MBKDevStudio.nightlite';
 const VIEW_TYPE = 'nightlite.viewer';
@@ -201,6 +203,99 @@ const tests: Record<string, () => Promise<void>> = {
     }
   },
 
+  async 'runs a query on a worker of its own, and stops one'() {
+    const document = new DatabaseDocument(
+      vscode.Uri.file(path.join(FIXTURES, 'sample.sqlite')),
+      WORKER,
+    );
+    const messages: HostToWebviewMessage[] = [];
+    const session = new QuerySession(
+      () => document.queryConnection(),
+      async (message) => messages.push(message),
+      async () => {},
+    );
+    const last = <T extends HostToWebviewMessage['type']>(type: T) =>
+      messages.filter((message) => message.type === type).at(-1) as
+        Extract<HostToWebviewMessage, { type: T }> | undefined;
+    try {
+      await session.answer({
+        type: 'runQuery',
+        run: 1,
+        sql: 'SELECT id FROM events ORDER BY id DESC',
+      });
+      assert.deepEqual(
+        { ...last('queryResult'), ms: 0 },
+        {
+          type: 'queryResult',
+          run: 1,
+          info: {
+            name: '',
+            columns: [
+              {
+                name: 'id',
+                type: 'INTEGER',
+                notNull: false,
+                defaultValue: null,
+                primaryKey: 0,
+                generated: false,
+              },
+            ],
+            hasRowid: false,
+            estimate: null,
+          },
+          rows: 5000,
+          end: 'done',
+          ms: 0,
+        },
+      );
+      await session.answer({
+        type: 'rows',
+        request: 1,
+        name: '',
+        query: 1,
+        start: 0,
+        count: 2,
+        total: 5000,
+      });
+      assert.deepEqual(last('rowPage')?.page.rows, [[5000], [4999]]);
+
+      // Rows that come slowly: stopping keeps the ones read.
+      const slow = session.answer({
+        type: 'runQuery',
+        run: 2,
+        sql:
+          'WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n) ' +
+          'SELECT i FROM n WHERE (SELECT count(*) FROM events WHERE amount > i % 7) >= 0',
+      });
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      await session.answer({ type: 'stopQuery', run: 2 });
+      await slow;
+      const stopped = last('queryResult');
+      assert.equal(stopped?.run, 2);
+      assert.equal(stopped?.end, 'stopped');
+      assert.ok(stopped.rows > 0 && stopped.rows < 100_000, `${stopped.rows} rows`);
+
+      // One row that takes SQLite ages: stopping ends the worker.
+      const stuck = session.answer({
+        type: 'runQuery',
+        run: 3,
+        sql: 'SELECT count(*) FROM events a, events b, events c',
+      });
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      await session.answer({ type: 'stopQuery', run: 3 });
+      await stuck;
+      assert.deepEqual(last('queryError'), {
+        type: 'queryError',
+        run: 3,
+        reason: 'stopped',
+        detail: '',
+      });
+    } finally {
+      session.dispose();
+      document.dispose();
+    }
+  },
+
   async 'opens a WAL database without creating files next to it'() {
     const file = path.join(FIXTURES, 'wal.sqlite');
     const client = new DatabaseClient(WORKER);
@@ -219,7 +314,12 @@ const tests: Record<string, () => Promise<void>> = {
 
   async 'registers its commands'() {
     const commands = await vscode.commands.getCommands(true);
-    for (const command of ['nightlite.goToTable', 'nightlite.copy', 'nightlite.copyAsMarkdown']) {
+    for (const command of [
+      'nightlite.goToTable',
+      'nightlite.openQuery',
+      'nightlite.copy',
+      'nightlite.copyAsMarkdown',
+    ]) {
       assert.ok(commands.includes(command), command);
     }
   },

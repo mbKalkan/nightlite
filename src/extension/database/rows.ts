@@ -29,7 +29,7 @@ export const BLOB_HEAD = 48;
 /** How far from a row already read the next read may start before positions are estimated. */
 const NEAR = 2000;
 
-const STORAGE_CLASSES: Record<string, string> = {
+export const STORAGE_CLASSES: Record<string, string> = {
   null: 'n',
   integer: 'i',
   real: 'f',
@@ -191,46 +191,11 @@ export class TableReader {
     statement.setReadBigInts(true);
     statement.setReturnArrays(true);
 
-    const { markdown = false } = range;
-    const single = range.count === 1 && columns.length === 1 && !markdown;
-    const lines: string[][] = [];
-    // A Markdown table aligns a column of numbers to the right.
-    const numbers = columns.map(() => ({ some: false, only: true }));
-    let size = 0;
-    let stopped = false;
-    let cut = false;
-    for (const row of statement.iterate(...params) as Iterable<unknown[]>) {
-      if (lines.length === COPY_ROWS) {
-        stopped = true;
-        break;
-      }
-      const fields: string[] = [];
-      for (let c = 0; c < columns.length; c++) {
-        const kind = row[c * 3] as string;
-        const text = copyText(kind, row[c * 3 + 1]);
-        cut ||= Number(row[c * 3 + 2]) > (kind === 'blob' ? COPY_LIMIT / 2 : COPY_LIMIT);
-        fields.push(markdown ? markdownCell(text) : single ? text : tsvField(text));
-        if (kind === 'integer' || kind === 'real') numbers[c].some = true;
-        else if (kind !== 'null') numbers[c].only = false;
-      }
-      const length = fields.reduce((sum, field) => sum + field.length, 0);
-      const line = markdown ? length + 3 * fields.length + 1 : length + fields.length - 1;
-      if (lines.length > 0 && size + line > COPY_LIMIT) {
-        stopped = true;
-        break;
-      }
-      lines.push(fields);
-      size += line + 1;
-    }
-    const text = markdown
-      ? markdownTable(
-          columns.map((column) => column.name),
-          lines,
-          numbers.map(({ some, only }) => some && only),
-          COPY_LIMIT,
-        )
-      : lines.map((fields) => fields.join('\t')).join('\n');
-    return { text, rows: lines.length, cells: lines.length * columns.length, stopped, cut };
+    return copyRows(
+      columns.map((column) => column.name),
+      statement.iterate(...params) as Iterable<unknown[]>,
+      { markdown: range.markdown, single: range.count === 1 && columns.length === 1 },
+    );
   }
 
   /**
@@ -393,8 +358,59 @@ function valueList(columns: ColumnInfo[], textLimit: number, blobLimit: number):
     .join(', ');
 }
 
+/**
+ * A block of cells, each read as its storage class, value and full length, as tab-separated text
+ * or a Markdown table: how a copy puts tables and query results on the clipboard alike. One cell
+ * copies as its bare value. Stops at COPY_ROWS rows or COPY_LIMIT characters.
+ */
+export function copyRows(
+  names: string[],
+  rows: Iterable<unknown[]>,
+  { markdown = false, single = false }: { markdown?: boolean; single?: boolean },
+): CopiedText {
+  single &&= !markdown;
+  const lines: string[][] = [];
+  // A Markdown table aligns a column of numbers to the right.
+  const numbers = names.map(() => ({ some: false, only: true }));
+  let size = 0;
+  let stopped = false;
+  let cut = false;
+  for (const row of rows) {
+    if (lines.length === COPY_ROWS) {
+      stopped = true;
+      break;
+    }
+    const fields: string[] = [];
+    for (let c = 0; c < names.length; c++) {
+      const kind = row[c * 3] as string;
+      const text = copyText(kind, row[c * 3 + 1]);
+      cut ||= Number(row[c * 3 + 2]) > (kind === 'blob' ? COPY_LIMIT / 2 : COPY_LIMIT);
+      fields.push(markdown ? markdownCell(text) : single ? text : tsvField(text));
+      if (kind === 'integer' || kind === 'real') numbers[c].some = true;
+      else if (kind !== 'null') numbers[c].only = false;
+    }
+    const length = fields.reduce((sum, field) => sum + field.length, 0);
+    const line = markdown ? length + 3 * fields.length + 1 : length + fields.length - 1;
+    if (lines.length > 0 && size + line > COPY_LIMIT) {
+      stopped = true;
+      break;
+    }
+    lines.push(fields);
+    size += line + 1;
+  }
+  const text = markdown
+    ? markdownTable(
+        names,
+        lines,
+        numbers.map(({ some, only }) => some && only),
+        COPY_LIMIT,
+      )
+    : lines.map((fields) => fields.join('\t')).join('\n');
+  return { text, rows: lines.length, cells: lines.length * names.length, stopped, cut };
+}
+
 /** One value as copied: NULL as nothing, numbers as the grid shows them, BLOBs as hex. */
-function copyText(kind: string, value: unknown): string {
+export function copyText(kind: string, value: unknown): string {
   switch (kind) {
     case 'null':
       return '';
@@ -409,7 +425,7 @@ function copyText(kind: string, value: unknown): string {
 }
 
 /** One cell as it travels to the webview: JSON-safe, exact, and short. */
-function encode(kind: string, value: unknown, length: unknown): CellValue {
+export function encode(kind: string, value: unknown, length: unknown): CellValue {
   switch (kind) {
     case 'null':
       return null;

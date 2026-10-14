@@ -316,6 +316,26 @@ export interface ViewerStrings {
   featureId: string;
   noAttributes: string;
   saveTile: string;
+  /** The query page (D-021). */
+  query: string;
+  queryStatement: string;
+  queryPlaceholder: string;
+  runQuery: string;
+  runQueryHint: string;
+  stopQuery: string;
+  stopQueryHint: string;
+  queryRunning: string;
+  queryStoppedNote: string;
+  milliseconds: string;
+  seconds: string;
+  queryLimit: string;
+  queryNoRows: string;
+  queryResults: string;
+  queryEmpty: string;
+  querySeveral: string;
+  queryWrites: string;
+  queryStopped: string;
+  queryErrorTitle: string;
   /** How the cell detail shows a BLOB. */
   showAs: string;
   viewImage: string;
@@ -375,6 +395,11 @@ export interface RevealMessage {
   name: string;
 }
 
+/** Open SQL Query, from the Command Palette. */
+export interface OpenQueryMessage {
+  type: 'openQuery';
+}
+
 /** Copy or Copy as Markdown Table, from the context menu or the Command Palette. */
 export interface CopySelectionMessage {
   type: 'copySelection';
@@ -399,6 +424,8 @@ export interface RowPageMessage {
   type: 'rowPage';
   request: number;
   name: string;
+  /** The query whose results these are, for the query page's grid. */
+  query?: number;
   page: RowPage;
 }
 
@@ -408,6 +435,8 @@ export interface ObjectErrorMessage {
   name: string;
   /** The `rows` or `copy` request that failed, if it was one. */
   request?: number;
+  /** The query whose results these are, for the query page's grid. */
+  query?: number;
   error: DatabaseError;
   detail: string;
 }
@@ -452,6 +481,8 @@ export interface CellValueMessage {
   type: 'cellValue';
   request: number;
   name: string;
+  /** The query whose results these are, for the query page's grid. */
+  query?: number;
   cell: FullCell;
 }
 
@@ -615,7 +646,41 @@ export interface CopiedMessage {
   type: 'copied';
   request: number;
   name: string;
+  /** The query whose results these are, for the query page's grid. */
+  query?: number;
   result: CopyResult;
+}
+
+/** Rows read so far by the query running. */
+export interface QueryProgressMessage {
+  type: 'queryProgress';
+  run: number;
+  rows: number;
+}
+
+/**
+ * A query ran: its columns and how many rows it kept, which the grid then asks for. `limit`:
+ * there were more than results hold; `stopped`: the user stopped it.
+ */
+export interface QueryResultMessage {
+  type: 'queryResult';
+  run: number;
+  info: ObjectInfo;
+  rows: number;
+  end: 'done' | 'limit' | 'stopped';
+  ms: number;
+}
+
+/**
+ * A query didn't run, or ended without rows: refused for writing or for being several
+ * statements, stopped by force, or failed, with SQLite's message in `detail`.
+ */
+export interface QueryErrorMessage {
+  type: 'queryError';
+  run: number;
+  reason: 'empty' | 'several' | 'writes' | 'stopped' | 'failed';
+  error?: DatabaseError;
+  detail: string;
 }
 
 export type HostToWebviewMessage =
@@ -625,6 +690,7 @@ export type HostToWebviewMessage =
   | SchemaErrorMessage
   | RevealMessage
   | CopySelectionMessage
+  | OpenQueryMessage
   | ObjectInfoMessage
   | RowCountMessage
   | RowPageMessage
@@ -645,7 +711,10 @@ export type HostToWebviewMessage =
   | TileContentMessage
   | TilesErrorMessage
   | MetadataStateMessage
-  | MetadataErrorMessage;
+  | MetadataErrorMessage
+  | QueryProgressMessage
+  | QueryResultMessage
+  | QueryErrorMessage;
 
 export type WebviewToHostMessage =
   | { type: 'ready' }
@@ -653,10 +722,25 @@ export type WebviewToHostMessage =
   | { type: 'reopenWith' }
   /** Asks for a table's or view's columns and row estimate; the count follows by itself. */
   | { type: 'openObject'; name: string }
-  /** Asks for `count` rows from position `start`; `total` is the row count the grid assumes. */
-  | { type: 'rows'; request: number; name: string; start: number; count: number; total: number }
+  /**
+   * Asks for `count` rows from position `start`; `total` is the row count the grid assumes.
+   * With `query`, of that query's results.
+   */
+  | {
+      type: 'rows';
+      request: number;
+      name: string;
+      query?: number;
+      start: number;
+      count: number;
+      total: number;
+    }
   /** Copies full values as tab-separated text; the extension host writes the clipboard. */
-  | { type: 'copy'; request: number; name: string; range: CopyRange }
+  | { type: 'copy'; request: number; name: string; query?: number; range: CopyRange }
+  /** Runs a statement from the query page, ending the one running (D-021). */
+  | { type: 'runQuery'; run: number; sql: string }
+  /** Stops the query running, keeping the rows read so far. */
+  | { type: 'stopQuery'; run: number }
   /** Asks for an object's columns, indexes and foreign keys, for its Schema page. */
   | { type: 'objectDetails'; name: string }
   /** Counts the rows of these tables in the background, for the overview. */
@@ -685,6 +769,7 @@ export type WebviewToHostMessage =
       type: 'cell';
       request: number;
       name: string;
+      query?: number;
       row: number;
       total: number;
       column: number;

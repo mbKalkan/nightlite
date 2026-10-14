@@ -17,6 +17,7 @@ import type { TileKey } from '../shared/tiles';
 import type { CopiedText } from './database/rows';
 import { classifyDatabaseError } from './databaseErrors';
 import type { MetadataEdit } from './metadataEdits';
+import { isQueryMessage, type QueryMessage } from './querySession';
 import { tileExtension } from './tileFile';
 
 /** What answering the webview's questions about tables and views needs from a database. */
@@ -62,13 +63,21 @@ export interface HostServices {
   onMetadataEdit(edit: MetadataEdit): void;
 }
 
-/** Answers questions about the database's contents; other messages are left to the caller. */
+/**
+ * Answers questions about the database's contents; the query page's go to its session, other
+ * messages are left to the caller.
+ */
 export async function answer(
   message: WebviewToHostMessage,
   backend: DatabaseBackend,
   post: Post,
   host: HostServices,
+  queries?: { answer(message: QueryMessage): Promise<void> },
 ): Promise<void> {
+  if (isQueryMessage(message)) {
+    await queries?.answer(message);
+    return;
+  }
   switch (message.type) {
     case 'openObject': {
       let info: ObjectInfo;

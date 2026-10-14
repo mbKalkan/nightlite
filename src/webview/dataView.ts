@@ -3,6 +3,7 @@ import type {
   CopyResult,
   FullCell,
   HostToWebviewMessage,
+  ObjectInfo,
   ViewerStrings,
   WebviewToHostMessage,
 } from '../shared/protocol';
@@ -14,7 +15,7 @@ import { STORAGE_CLASSES, cellText } from './grid/cells';
 import { DataGrid, type CellRange, type GridPosition } from './grid/dataGrid';
 import { databaseErrorMessage, element, format } from './views';
 
-type DataMessage = Extract<
+export type DataMessage = Extract<
   HostToWebviewMessage,
   { type: 'objectInfo' | 'rowCount' | 'rowPage' | 'objectError' | 'copied' | 'cellValue' }
 >;
@@ -29,6 +30,10 @@ export interface DataViewOptions {
   /** Where the grid was when this table was last shown. */
   position?: GridPosition;
   onDetailWidth(width: number): void;
+  /** A query's results, in place of a table's rows: the host holds them, all `total` of them. */
+  results?: { query: number; info: ObjectInfo; total: number };
+  /** What the grid says when there are no rows. */
+  empty?: string;
 }
 
 /** The status bar shows this much of a value; the cell detail shows the rest. */
@@ -46,7 +51,7 @@ let nextRequest = 1;
  * A table's or view's rows: asks the extension host for the columns, then rows as the grid
  * scrolls, and shows the selection and the row and column counts below, and the selected
  * cell in full beside the grid when asked. Answers for another object, or for requests made
- * before this view, are ignored.
+ * before this view, are ignored. A query's results show the same way.
  */
 export class DataView {
   readonly element: HTMLElement;
@@ -69,6 +74,8 @@ export class DataView {
   private estimated = false;
   private noteTimer = 0;
   private copyTimer = 0;
+  /** The query whose results these are; undefined for a table or view. */
+  private readonly query: number | undefined;
 
   constructor(
     readonly name: string,
@@ -88,63 +95,28 @@ export class DataView {
     this.counts.setAttribute('aria-live', 'polite');
     this.footer.append(this.selectionStatus, this.note, this.counts);
     this.element.append(element('div', 'nl-progress'), this.footer);
-    send({ type: 'openObject', name });
+    const results = options.results;
+    this.query = results?.query;
+    if (results) {
+      this.start(results.info);
+      this.grid?.setTotal(results.total, true);
+    } else {
+      send({ type: 'openObject', name });
+    }
   }
 
   receive(message: DataMessage): void {
     if (
-      message.type === 'objectInfo' ? message.info.name !== this.name : message.name !== this.name
+      message.type === 'objectInfo'
+        ? message.info.name !== this.name || this.query !== undefined
+        : message.name !== this.name ||
+          ('query' in message ? message.query : undefined) !== this.query
     ) {
       return;
     }
     switch (message.type) {
       case 'objectInfo':
-        if (this.grid) return;
-        this.columns = message.info.columns.length;
-        this.estimated = message.info.estimate !== null;
-        this.grid = new DataGrid(message.info, this.strings, this.locale, {
-          request: (start, count, total) => {
-            const request = nextRequest++;
-            this.requests.add(request);
-            this.send({ type: 'rows', request, name: this.name, start, count, total });
-          },
-          onTotal: (total, exact) => this.showCounts(total, exact),
-          onSelection: () => {
-            this.showSelection();
-            this.updateDetail();
-          },
-          onCopy: (range, toEnd, markdown) => this.copy(range, toEnd, markdown),
-          onEnter: () => this.setDetail(true, true),
-        });
-        this.detail = new CellDetail(
-          this.strings,
-          this.locale,
-          {
-            copy: () => {
-              const cell = this.grid?.activeCell;
-              if (cell)
-                this.copy(
-                  { row1: cell.row, col1: cell.col, row2: cell.row, col2: cell.col },
-                  false,
-                  false,
-                );
-            },
-            close: () => {
-              this.setDetail(false);
-              this.focus();
-            },
-            leave: () => this.focus(),
-            resized: (width) => this.options.onDetailWidth(width),
-          },
-          this.options.detailWidth,
-        );
-        this.detail.element.hidden = !this.detailOpen;
-        if (this.options.position) this.grid.restore(this.options.position);
-        this.main.replaceChildren(this.grid.element, this.detail.element);
-        this.element.replaceChildren(this.main, this.footer);
-        this.showCounts(message.info.estimate ?? 0, false);
-        this.showSelection();
-        this.updateDetail();
+        this.start(message.info);
         break;
       case 'rowCount':
         this.grid?.setTotal(message.count, true);
@@ -204,6 +176,63 @@ export class DataView {
     this.grid?.element.focus();
   }
 
+  /** The columns are known: the grid and the detail panel go in. */
+  private start(info: ObjectInfo): void {
+    if (this.grid) return;
+    this.columns = info.columns.length;
+    this.estimated = info.estimate !== null;
+    this.grid = new DataGrid(
+      info,
+      this.strings,
+      this.locale,
+      {
+        request: (start, count, total) => {
+          const request = nextRequest++;
+          this.requests.add(request);
+          const { name, query } = this;
+          this.send({ type: 'rows', request, name, query, start, count, total });
+        },
+        onTotal: (total, exact) => this.showCounts(total, exact),
+        onSelection: () => {
+          this.showSelection();
+          this.updateDetail();
+        },
+        onCopy: (range, toEnd, markdown) => this.copy(range, toEnd, markdown),
+        onEnter: () => this.setDetail(true, true),
+      },
+      this.options.empty,
+    );
+    this.detail = new CellDetail(
+      this.strings,
+      this.locale,
+      {
+        copy: () => {
+          const cell = this.grid?.activeCell;
+          if (cell)
+            this.copy(
+              { row1: cell.row, col1: cell.col, row2: cell.row, col2: cell.col },
+              false,
+              false,
+            );
+        },
+        close: () => {
+          this.setDetail(false);
+          this.focus();
+        },
+        leave: () => this.focus(),
+        resized: (width) => this.options.onDetailWidth(width),
+      },
+      this.options.detailWidth,
+    );
+    this.detail.element.hidden = !this.detailOpen;
+    if (this.options.position) this.grid.restore(this.options.position);
+    this.main.replaceChildren(this.grid.element, this.detail.element);
+    this.element.replaceChildren(this.main, this.footer);
+    this.showCounts(info.estimate ?? 0, false);
+    this.showSelection();
+    this.updateDetail();
+  }
+
   /** Where the grid is, to come back to; undefined before the rows show. */
   position(): GridPosition | undefined {
     return this.grid?.position;
@@ -247,6 +276,7 @@ export class DataView {
       type: 'copy',
       request,
       name: this.name,
+      query: this.query,
       range: {
         start: range.row1,
         count: toEnd ? null : range.row2 - range.row1 + 1,
@@ -367,6 +397,7 @@ export class DataView {
         type: 'cell',
         request,
         name: this.name,
+        query: this.query,
         row,
         total: grid.rowCount.total,
         column: col,

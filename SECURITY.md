@@ -6,7 +6,14 @@ strict Content Security Policy.
 
 The one thing it writes is an MBTiles tileset's metadata, and only when you save changes you made
 to it: on a connection of its own, closed right after, in one transaction, with Nightlite's own
-parameterized statements, to the `metadata` table only. Nothing you type runs as SQL.
+parameterized statements, to the `metadata` table only. Metadata you type is bound as values,
+never run as SQL.
+
+The SQL Query page runs only statements that read: `SELECT`, `WITH … SELECT`, `VALUES`,
+`EXPLAIN`, and `PRAGMA`s that report. Each statement is checked before it runs, one at a time,
+so `ATTACH`, `VACUUM INTO` and everything that writes are turned down. Queries run on a
+read-only connection of their own with `PRAGMA query_only` on, never on the connection that
+saves metadata.
 
 ## Reporting a vulnerability
 

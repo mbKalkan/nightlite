@@ -5,6 +5,7 @@
   "virtualWorkspaces.description": "Nightlite reads databases with SQLite, which needs a file on a local or remote disk.",
   "category": "Nightlite",
   "command.goToTable": "Go to Table…",
+  "command.openQuery": "Open SQL Query",
   "command.copy": "Copy",
   "command.copyAsMarkdown": "Copy as Markdown Table"
 }

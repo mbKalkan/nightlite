@@ -1,7 +1,7 @@
 import type { ObjectType, SchemaObject, ViewerStrings } from '../shared/protocol';
 import { icons } from './icons';
 
-/** `overview`, `tiles`, `metadata`, `group:<type>` or `<type>:<name>`. */
+/** `overview`, `tiles`, `metadata`, `query`, `group:<type>` or `<type>:<name>`. */
 export type EntryKey = string;
 
 interface Entry {
@@ -26,8 +26,8 @@ export const objectKey = (object: Pick<SchemaObject, 'type' | 'name'>): EntryKey
   `${object.type}:${object.name}`;
 
 /**
- * The sidebar entries: Overview, the tile browser for tilesets, then one collapsible group per
- * kind of object that exists.
+ * The sidebar entries: Overview, the tile browser and metadata for tilesets, the query page,
+ * then one collapsible group per kind of object that exists.
  */
 function entriesFor(
   objects: readonly SchemaObject[],
@@ -46,6 +46,7 @@ function entriesFor(
       icon: icons.metadata,
     });
   }
+  entries.push({ key: 'query', label: strings.query, level: 1, icon: icons.query });
   for (const group of GROUPS) {
     // SQLite's own tables and the ones behind virtual tables come last, dimmed.
     const members = objects

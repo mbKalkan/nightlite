@@ -5,6 +5,7 @@
   "virtualWorkspaces.description": "Nightlite veritabanlarını SQLite ile okur; bunun için dosyanın yerel ya da uzak bir diskte olması gerekir.",
   "category": "Nightlite",
   "command.goToTable": "Tabloya Git…",
+  "command.openQuery": "SQL Sorgusunu Aç",
   "command.copy": "Kopyala",
   "command.copyAsMarkdown": "Markdown Tablosu Olarak Kopyala"
 }

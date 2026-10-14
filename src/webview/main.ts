@@ -29,6 +29,10 @@ const shell = new Shell(
       state.hiddenLayers = [...view.hidden];
       vscode.setState(state);
     },
+    onSql: (sql) => {
+      state.sql = sql;
+      vscode.setState(state);
+    },
     send: (message) => vscode.postMessage(message),
   },
   {
@@ -40,6 +44,7 @@ const shell = new Shell(
       scheme: state.scheme ?? 'xyz',
       hidden: new Set(state.hiddenLayers ?? []),
     },
+    sql: state.sql,
   },
 );
 let loaded = false;
@@ -74,6 +79,9 @@ window.addEventListener('message', (event: MessageEvent<HostToWebviewMessage>) =
     case 'copySelection':
       shell.copySelection(message.markdown);
       break;
+    case 'openQuery':
+      shell.openQuery();
+      break;
     case 'objectInfo':
     case 'rowCount':
     case 'rowPage':
@@ -106,6 +114,11 @@ window.addEventListener('message', (event: MessageEvent<HostToWebviewMessage>) =
     case 'metadataState':
     case 'metadataError':
       shell.metadataMessage(message);
+      break;
+    case 'queryProgress':
+    case 'queryResult':
+    case 'queryError':
+      shell.queryMessage(message);
       break;
   }
 });
