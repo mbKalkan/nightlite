@@ -1,3 +1,5 @@
+<img src="assets/icon.png" alt="" width="96" align="right">
+
 # Nightlite
 
 [![CI](https://github.com/mbKalkan/nightlite/actions/workflows/ci.yml/badge.svg)](https://github.com/mbKalkan/nightlite/actions/workflows/ci.yml)
