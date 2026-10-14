@@ -1181,3 +1181,473 @@ body.vscode-high-contrast .nl-json-key {
   flex: none;
   margin-left: auto;
 }
+
+/* Tile browser: a toolbar, the zoom level's tiles on the left, the selected tile beside them. */
+
+.nl-tiles {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.nl-tiles-bar {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--nl-border);
+}
+
+.nl-tiles-label {
+  color: var(--vscode-descriptionForeground);
+}
+
+/* A drop-down and a text box as VS Code draws its own. */
+.nl-select,
+.nl-input {
+  height: 26px;
+  box-sizing: border-box;
+  border: 1px solid var(--vscode-dropdown-border, var(--vscode-input-border, transparent));
+  border-radius: 2px;
+  font: inherit;
+  outline: none;
+}
+
+.nl-select {
+  padding: 0 6px;
+  background: var(--vscode-dropdown-background);
+  color: var(--vscode-dropdown-foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.nl-input {
+  padding: 0 6px;
+  border-color: var(--vscode-input-border, transparent);
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+}
+
+.nl-input::placeholder {
+  color: var(--vscode-input-placeholderForeground);
+}
+
+.nl-select:focus,
+.nl-input:focus {
+  border-color: var(--vscode-focusBorder);
+}
+
+.nl-input[aria-invalid='true'] {
+  border-color: var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground));
+}
+
+.nl-select:disabled,
+.nl-input:disabled {
+  opacity: 0.5;
+}
+
+.nl-address-box {
+  position: relative;
+  display: flex;
+  flex: 0 1 260px;
+  min-width: 160px;
+}
+
+.nl-address {
+  width: 100%;
+  font-family: var(--vscode-editor-font-family, monospace);
+}
+
+.nl-address-note:empty {
+  display: none;
+}
+
+.nl-address-note {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  z-index: 10;
+  width: max-content;
+  max-width: 320px;
+  padding: 4px 8px;
+  border: 1px solid var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground));
+  background: var(--vscode-inputValidation-errorBackground, var(--vscode-editorWidget-background));
+  color: var(--vscode-inputValidation-errorForeground, var(--vscode-foreground));
+  font-size: 12px;
+}
+
+/* Two choices side by side, one of them on. */
+.nl-segmented {
+  display: inline-flex;
+  margin-left: auto;
+  border: 1px solid var(--vscode-input-border, var(--nl-border));
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.nl-segment {
+  height: 22px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--vscode-descriptionForeground);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.nl-segment + .nl-segment {
+  border-left: 1px solid var(--vscode-input-border, var(--nl-border));
+}
+
+.nl-segment:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+  color: var(--vscode-foreground);
+}
+
+.nl-segment[aria-checked='true'] {
+  background: var(--vscode-inputOption-activeBackground, var(--vscode-toolbar-activeBackground));
+  color: var(--vscode-inputOption-activeForeground, var(--vscode-foreground));
+}
+
+.nl-segment:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+.nl-tiles-main {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.nl-tile-list-place {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: 168px;
+  border-right: 1px solid var(--nl-border);
+}
+
+.nl-tile-list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: var(--vscode-editor-font-size, 13px);
+  font-variant-numeric: tabular-nums;
+}
+
+.nl-tile-list-head,
+.nl-tile-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 0 12px;
+}
+
+.nl-tile-list-head {
+  flex: none;
+  height: 24px;
+  align-items: center;
+  border-bottom: 1px solid var(--nl-border);
+  color: var(--vscode-descriptionForeground);
+  font-family: var(--vscode-font-family);
+  font-size: 12px;
+}
+
+.nl-tile-list-head span,
+.nl-tile-row span {
+  text-align: right;
+}
+
+.nl-tile-list-scroll {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  /* Rows are redrawn in place; the browser mustn't scroll to keep one of them still. */
+  overflow-anchor: none;
+  outline: none;
+  user-select: none;
+}
+
+.nl-tile-list-sizer {
+  position: relative;
+}
+
+.nl-tile-list-rows {
+  position: absolute;
+  right: 0;
+  left: 0;
+}
+
+.nl-tile-row {
+  height: 22px;
+  align-items: center;
+  cursor: pointer;
+}
+
+.nl-tile-row:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.nl-tile-row-selected {
+  background: var(--vscode-list-inactiveSelectionBackground);
+  color: var(--vscode-list-inactiveSelectionForeground, inherit);
+}
+
+.nl-tile-list-scroll:focus .nl-tile-row-selected {
+  background: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground, inherit);
+}
+
+/* High-contrast themes mark selection with an outline instead of a background. */
+.nl-tile-row-selected {
+  outline: 1px dotted
+    var(--vscode-list-activeSelectionBorder, var(--vscode-contrastActiveBorder, transparent));
+  outline-offset: -1px;
+}
+
+.nl-tile-list-scroll:focus .nl-tile-row-active {
+  outline: 1px solid var(--vscode-list-focusOutline, var(--vscode-focusBorder));
+  outline-offset: -1px;
+}
+
+.nl-tile-row-loading::after {
+  content: '';
+  grid-column: 1 / -1;
+  height: 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+}
+
+.nl-tile-view {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  padding: 14px 20px 20px;
+  overflow: auto;
+  outline: none;
+  container-type: inline-size;
+}
+
+.nl-tile-view:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+.nl-tile-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+}
+
+.nl-tile-address {
+  margin: 0;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 1.25em;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  user-select: text;
+}
+
+.nl-tile-nav {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.nl-tile-nav-gap {
+  width: 8px;
+}
+
+.nl-tile-facts {
+  min-height: 1.4em;
+  margin: 4px 0 14px;
+  color: var(--vscode-descriptionForeground);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The drawing as large as the view allows, its layers beside it, or below in narrow views. */
+.nl-tile-stage {
+  display: flex;
+  gap: 16px 24px;
+  align-items: flex-start;
+}
+
+.nl-tile-frame {
+  box-sizing: border-box;
+  border: 1px solid var(--nl-border);
+}
+
+/* A checkerboard behind images, so transparency shows. */
+.nl-tile-image {
+  --nl-check: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+  display: inline-block;
+  max-width: 100%;
+  background:
+    repeating-conic-gradient(var(--nl-check) 0 25%, transparent 0 50%) 0 0 / 16px 16px,
+    var(--vscode-editor-background);
+}
+
+.nl-tile-image img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.nl-tile-image img.nl-pixelated {
+  width: 256px;
+  image-rendering: pixelated;
+}
+
+.nl-tile-canvas {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 240px;
+  max-width: max(240px, min(640px, calc(100vh - 190px)));
+  aspect-ratio: 1;
+  background: var(--vscode-editor-background);
+}
+
+.nl-tile-canvas canvas {
+  display: block;
+}
+
+.nl-tile-layers {
+  flex: 0 0 220px;
+  min-width: 0;
+}
+
+@container (max-width: 560px) {
+  .nl-tile-stage {
+    flex-direction: column;
+  }
+
+  .nl-tile-layers {
+    flex: none;
+    width: 100%;
+  }
+}
+
+.nl-tile-layers .nl-heading {
+  margin-top: 0;
+}
+
+.nl-tile-layer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nl-tile-layer {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.nl-tile-layer-label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.nl-tile-layer-name {
+  overflow: hidden;
+  font-family: var(--vscode-editor-font-family, monospace);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nl-tile-layer-facts {
+  padding-left: 46px;
+  color: var(--vscode-descriptionForeground);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.nl-swatch {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+}
+
+body.vscode-high-contrast .nl-swatch {
+  outline: 1px solid var(--vscode-contrastBorder, transparent);
+}
+
+/* A check box as VS Code draws its own. */
+.nl-checkbox {
+  display: inline-grid;
+  flex: none;
+  place-content: center;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border: 1px solid var(--vscode-checkbox-border, var(--nl-border));
+  border-radius: 3px;
+  background: var(--vscode-checkbox-background, var(--vscode-input-background));
+  appearance: none;
+  cursor: pointer;
+}
+
+.nl-checkbox::before {
+  content: '';
+  width: 12px;
+  height: 12px;
+  background: var(--vscode-checkbox-foreground, var(--vscode-foreground));
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M13 4.5 6.5 11 3 7.5' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  visibility: hidden;
+}
+
+.nl-checkbox:checked::before {
+  visibility: visible;
+}
+
+.nl-checkbox:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
+.nl-tile-message {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 520px;
+  color: var(--vscode-descriptionForeground);
+  line-height: 1.5;
+}
+
+.nl-tile-message strong {
+  color: var(--vscode-foreground);
+}
+
+.nl-tiles-message {
+  padding: 16px 12px;
+}
+
+.nl-tile-bytes .nl-note {
+  margin: 0 0 8px;
+}
+
+.nl-tile-hex {
+  margin: 0;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: var(--vscode-editor-font-size, 13px);
+  line-height: 1.5;
+  user-select: text;
+}

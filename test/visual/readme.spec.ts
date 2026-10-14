@@ -77,6 +77,16 @@ test('an MBTiles summary', async ({ page }) => {
   await page.screenshot({ path: `${OUT}/mbtiles-dark.png` });
 });
 
+test('a vector tile in the tile browser', async ({ page }) => {
+  const viewer = await openViewer(page, 'dark');
+  await viewer.load('showcase.mbtiles');
+  await open(page, 'tiles');
+  await expect(page.locator('.nl-tile-address')).toHaveText('14/9510/6142');
+  await expect(page.locator('.nl-tile-layer-name')).toHaveCount(5);
+  await settle(page);
+  await page.screenshot({ path: `${OUT}/tiles-dark.png` });
+});
+
 test("a database's overview", async ({ page }) => {
   const viewer = await openViewer(page, 'dark');
   await viewer.load('sample.sqlite');

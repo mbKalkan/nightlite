@@ -7,9 +7,12 @@ import type {
   ObjectInfo,
   RowPage,
   TableSummary,
+  TileContent,
+  TilePage,
   WebviewToHostMessage,
   ZoomRange,
 } from '../shared/protocol';
+import type { TileKey } from '../shared/tiles';
 import type { CopiedText } from './database/rows';
 import { classifyDatabaseError } from './databaseErrors';
 
@@ -34,6 +37,9 @@ export interface DatabaseBackend {
     onRange: (range: ZoomRange | null) => void,
     onCount: (zoom: number, count: number) => void,
   ): Promise<void>;
+  tilePage(zoom: number, start: number, count: number, total: number): Promise<TilePage>;
+  locateTile(key: TileKey, total: number): Promise<number>;
+  tile(key: TileKey): Promise<TileContent | null>;
 }
 
 type Post = (message: HostToWebviewMessage) => Thenable<boolean> | Promise<unknown>;
@@ -130,6 +136,19 @@ export async function answer(
       await post({ type: 'zoomCountsEnd', complete });
       return;
     }
+    case 'tiles':
+    case 'locateTile':
+    case 'tile':
+      try {
+        await post(await answerTiles(message, backend));
+      } catch (error) {
+        await post({
+          type: 'tilesError',
+          request: message.request,
+          ...classifyDatabaseError(error),
+        });
+      }
+      return;
     case 'cell':
       try {
         const cell = await backend.cell(
@@ -163,5 +182,38 @@ export async function answer(
         });
       }
       return;
+  }
+}
+
+/** The tile browser's questions, each answered from the reader. */
+async function answerTiles(
+  message: Extract<WebviewToHostMessage, { type: 'tiles' | 'locateTile' | 'tile' }>,
+  backend: DatabaseBackend,
+): Promise<HostToWebviewMessage> {
+  const { request } = message;
+  switch (message.type) {
+    case 'tiles': {
+      const { zoom, start, count, total } = message;
+      return {
+        type: 'tilePage',
+        request,
+        zoom,
+        page: await backend.tilePage(zoom, start, count, total),
+      };
+    }
+    case 'locateTile':
+      return {
+        type: 'tilePosition',
+        request,
+        key: message.key,
+        position: await backend.locateTile(message.key, message.total),
+      };
+    case 'tile':
+      return {
+        type: 'tileContent',
+        request,
+        key: message.key,
+        content: await backend.tile(message.key),
+      };
   }
 }

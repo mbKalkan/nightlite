@@ -8,14 +8,17 @@ import type { WorkerCall, WorkerRequest, WorkerResponse } from './messages';
 import { TableReader } from './rows';
 import { readSchema } from './schema';
 import { READ_OPTIONS } from './target';
+import { TileLister, readTile } from './tiles';
 
 let db: DatabaseSync | undefined;
 const readers = new Map<string, TableReader>();
+const listers = new Map<number, TileLister>();
 
 function handle(call: WorkerCall): unknown {
   switch (call.type) {
     case 'open':
       readers.clear();
+      listers.clear();
       db?.close();
       // Read-only: SQLite refuses every write, and load_extension stays off by default.
       db = new DatabaseSync(call.target, READ_OPTIONS);
@@ -44,6 +47,12 @@ function handle(call: WorkerCall): unknown {
       return zoomRange(connection());
     case 'zoomCount':
       return zoomCount(connection(), call.zoom);
+    case 'tilePage':
+      return lister(call.zoom).page(call.start, call.count, call.total);
+    case 'locateTile':
+      return lister(call.zoom).locate(call.column, call.row, call.total);
+    case 'tile':
+      return readTile(connection(), call.zoom, call.column, call.row);
   }
 }
 
@@ -59,6 +68,15 @@ function reader(name: string): TableReader {
   if (!found) {
     found = new TableReader(connection(), name);
     readers.set(name, found);
+  }
+  return found;
+}
+
+function lister(zoom: number): TileLister {
+  let found = listers.get(zoom);
+  if (!found) {
+    found = new TileLister(connection(), zoom);
+    listers.set(zoom, found);
   }
   return found;
 }

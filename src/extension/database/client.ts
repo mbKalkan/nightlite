@@ -8,8 +8,11 @@ import type {
   RowPage,
   SchemaObject,
   TableSummary,
+  TileContent,
+  TilePage,
   ZoomRange,
 } from '../../shared/protocol';
+import type { TileKey } from '../../shared/tiles';
 import type { WorkerCall, WorkerFailure, WorkerResponse } from './messages';
 import type { CopiedText } from './rows';
 
@@ -89,6 +92,18 @@ export class DatabaseClient {
 
   zoomCount(zoom: number): Promise<number> {
     return this.call({ type: 'zoomCount', zoom }) as Promise<number>;
+  }
+
+  tilePage(zoom: number, start: number, count: number, total: number): Promise<TilePage> {
+    return this.call({ type: 'tilePage', zoom, start, count, total }) as Promise<TilePage>;
+  }
+
+  locateTile(key: TileKey, total: number): Promise<number> {
+    return this.call({ type: 'locateTile', ...key, total }) as Promise<number>;
+  }
+
+  tile(key: TileKey): Promise<TileContent | null> {
+    return this.call({ type: 'tile', ...key }) as Promise<TileContent | null>;
   }
 
   dispose(): void {

@@ -1,7 +1,7 @@
 import type { ObjectType, SchemaObject, ViewerStrings } from '../shared/protocol';
 import { icons } from './icons';
 
-/** `overview`, `group:<type>` or `<type>:<name>`. */
+/** `overview`, `tiles`, `group:<type>` or `<type>:<name>`. */
 export type EntryKey = string;
 
 interface Entry {
@@ -25,11 +25,21 @@ const GROUPS: { type: ObjectType; label: keyof ViewerStrings }[] = [
 export const objectKey = (object: Pick<SchemaObject, 'type' | 'name'>): EntryKey =>
   `${object.type}:${object.name}`;
 
-/** The sidebar entries: Overview, then one collapsible group per kind of object that exists. */
-function entriesFor(objects: readonly SchemaObject[], strings: ViewerStrings): Entry[] {
+/**
+ * The sidebar entries: Overview, the tile browser for tilesets, then one collapsible group per
+ * kind of object that exists.
+ */
+function entriesFor(
+  objects: readonly SchemaObject[],
+  strings: ViewerStrings,
+  tiles: boolean,
+): Entry[] {
   const entries: Entry[] = [
     { key: 'overview', label: strings.overview, level: 1, icon: icons.database },
   ];
+  if (tiles) {
+    entries.push({ key: 'tiles', label: strings.tileBrowser, level: 1, icon: icons.tiles });
+  }
   for (const group of GROUPS) {
     // SQLite's own tables and the ones behind virtual tables come last, dimmed.
     const members = objects
@@ -78,8 +88,9 @@ export class ObjectTree {
     objects: readonly SchemaObject[],
     private readonly strings: ViewerStrings,
     private readonly onSelect: (key: EntryKey) => void,
+    tiles = false,
   ) {
-    this.entries = entriesFor(objects, strings);
+    this.entries = entriesFor(objects, strings, tiles);
     this.element = document.createElement('div');
     this.element.className = 'nl-tree';
     this.element.setAttribute('role', 'tree');

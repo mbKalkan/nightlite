@@ -22,7 +22,8 @@ tileset opens at once.
 - **Built for big files.** Nothing is loaded whole. Any row of any table is a click or a key
   away, rows are counted in the background, and memory stays flat however far you scroll.
 - **Made for MBTiles.** A tileset opens on a summary: tiles by zoom level, vector layers and their
-  fields, and its metadata checked against the MBTiles spec.
+  fields, and its metadata checked against the MBTiles spec. The tile browser draws any tile,
+  vector or raster, at any zoom level of any size.
 - **Exact.** Values show as SQLite stores them: integers beyond 2^53 keep every digit, a `REAL`
   keeps its decimal point, `NULL` stands apart from text, and BLOBs say what they hold.
 - **Dark-first.** Follows your VS Code theme, including high contrast.
@@ -63,6 +64,16 @@ tileset opens at once.
   the tiles contradict, pointed out
 - Deduplicated tilesets, where `tiles` is a view over shared images, are recognized
 
+![A vector tile drawn layer by layer in Nightlite's tile browser, beside the zoom level's tiles](docs/images/tiles-dark.png)
+
+- A tile browser: pick a zoom level, go to a tile by its z/x/y or a pasted tile URL, or pick one
+  from the zoom level's tiles, millions of them included
+- Vector tiles drawn layer by layer, each layer's features counted by geometry type; show or
+  hide layers as you go
+- Raster tiles (PNG, JPEG, WebP) shown as images, and every tile's size, stored and uncompressed
+- Arrow keys move to the neighboring tiles, <kbd>+</kbd> and <kbd>−</kbd> between zoom levels;
+  rows numbered as in tile URLs (XYZ) or as MBTiles stores them (TMS)
+
 ### Everywhere
 
 - Dark, light and high contrast themes
@@ -94,6 +105,8 @@ Nightlite opens any SQLite file, whatever its name: right-click it and choose
 | Select all                            | <kbd>Ctrl</kbd>+<kbd>A</kbd>                                                            |
 | Copy                                  | <kbd>Ctrl</kbd>+<kbd>C</kbd>                                                            |
 | Show the cell in full                 | <kbd>Enter</kbd> (<kbd>Escape</kbd> goes back to the grid)                              |
+| Move to a neighboring tile            | Arrow keys, in the tile browser                                                         |
+| Zoom in or out a level                | <kbd>+</kbd> / <kbd>−</kbd>, in the tile browser                                        |
 
 On macOS, use <kbd>Cmd</kbd> in place of <kbd>Ctrl</kbd>.
 
@@ -102,7 +115,7 @@ On macOS, use <kbd>Cmd</kbd> in place of <kbd>Ctrl</kbd>.
 - Nightlite is read-only: it doesn't change data. Editing an MBTiles tileset's metadata is
   planned.
 - There's no SQL query box, sorting or filtering yet.
-- Tiles aren't previewed yet; a tile browser is planned.
+- The tile browser draws a tile's features, but doesn't show one feature's attributes yet.
 - A copy holds up to a million rows or 16 MB.
 - Files have to be on a disk VS Code's extension host can reach, locally or in a remote window;
   virtual file systems aren't supported.

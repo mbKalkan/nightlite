@@ -23,4 +23,13 @@ export const icons = {
   ),
   close: svg('<path d="M4 4l8 8M12 4l-8 8"/>'),
   panelRight: svg('<rect x="2" y="3" width="12" height="10" rx="1"/><path d="M9.5 3v10"/>'),
+  tiles: svg(
+    '<rect x="2" y="2" width="5" height="5" rx=".5"/><rect x="9" y="2" width="5" height="5" rx=".5"/><rect x="2" y="9" width="5" height="5" rx=".5"/><rect x="9" y="9" width="5" height="5" rx=".5"/>',
+  ),
+  arrowLeft: svg('<path d="M13 8H3M7 4 3 8l4 4"/>'),
+  arrowRight: svg('<path d="M3 8h10M9 4l4 4-4 4"/>'),
+  arrowUp: svg('<path d="M8 13V3M4 7l4-4 4 4"/>'),
+  arrowDown: svg('<path d="M8 3v10M4 9l4 4 4-4"/>'),
+  zoomIn: svg('<circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14M5 7h4M7 5v4"/>'),
+  zoomOut: svg('<circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14M5 7h4"/>'),
 } as const;

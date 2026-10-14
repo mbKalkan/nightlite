@@ -42,6 +42,8 @@ export class MbtilesView {
     private readonly locale: string,
     private readonly strings: ViewerStrings,
     private readonly state: TilesState,
+    /** Opens the tile browser at a zoom level. */
+    private readonly onZoom?: (zoom: number) => void,
   ) {
     this.element = element('div', 'nl-page nl-mbtiles');
     this.zooms = element('section', 'nl-section nl-zooms');
@@ -117,8 +119,19 @@ export class MbtilesView {
         const fill = element('span', 'nl-zoom-fill');
         fill.style.width = `${count ? Math.max(0.5, (count / most) * 100) : 0}%`;
         bar.append(fill);
+        // The link keeps its button role inside a cell of its own.
+        const level = element('span', 'nl-zoom-level');
+        if (this.onZoom) {
+          const link = element('button', 'nl-link', String(zoom));
+          link.setAttribute('type', 'button');
+          link.title = format(strings.tilesAtZoomList, String(zoom));
+          link.addEventListener('click', () => this.onZoom?.(zoom));
+          level.append(link);
+        } else {
+          level.textContent = String(zoom);
+        }
         const cells = [
-          element('span', 'nl-zoom-level', String(zoom)),
+          level,
           element(
             'span',
             'nl-zoom-count',

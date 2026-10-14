@@ -6,6 +6,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A tile browser for MBTiles, in the sidebar under the overview. Pick a zoom level, type a
+  tile's z/x/y, paste a tile URL, or pick a tile from the zoom level's list, which scrolls
+  through millions of tiles. The arrow keys move to the neighboring tiles and <kbd>+</kbd> and
+  <kbd>−</kbd> between zoom levels; rows are numbered as in tile URLs (XYZ) or as MBTiles stores
+  them (TMS). The summary's zoom levels open the browser there.
+- Vector tiles are drawn layer by layer, with each layer's features counted by geometry type;
+  layers can be shown or hidden. Raster tiles show as images. Every tile shows its size as
+  stored and, for compressed tiles, uncompressed.
+
 ## [0.1.0] - 2026-10-14
 
 First preview release: SQLite databases, MBTiles and GeoPackages, read-only, at any size.

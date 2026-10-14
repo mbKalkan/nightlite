@@ -23,9 +23,24 @@ const shell = new Shell(
       state.detailWidth = width;
       vscode.setState(state);
     },
+    onTileView: (view) => {
+      state.tile = view.tile;
+      state.scheme = view.scheme;
+      state.hiddenLayers = [...view.hidden];
+      vscode.setState(state);
+    },
     send: (message) => vscode.postMessage(message),
   },
-  { tab: state.tab ?? 'data', detail: state.detail ?? false, detailWidth: state.detailWidth },
+  {
+    tab: state.tab ?? 'data',
+    detail: state.detail ?? false,
+    detailWidth: state.detailWidth,
+    tileView: {
+      tile: state.tile,
+      scheme: state.scheme ?? 'xyz',
+      hidden: new Set(state.hiddenLayers ?? []),
+    },
+  },
 );
 let loaded = false;
 
@@ -78,6 +93,12 @@ window.addEventListener('message', (event: MessageEvent<HostToWebviewMessage>) =
     case 'zoomCount':
     case 'zoomCountsEnd':
       shell.tilesMessage(message);
+      break;
+    case 'tilePage':
+    case 'tilePosition':
+    case 'tileContent':
+    case 'tilesError':
+      shell.tileMessage(message);
       break;
   }
 });
