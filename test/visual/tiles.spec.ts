@@ -46,13 +46,16 @@ for (const theme of ['dark', 'light', 'hcDark', 'hcLight'] as ThemeName[]) {
     await expect(selectedRow(page)).toHaveText('11');
 
     // Something was drawn: the canvas isn't blank.
-    const drawn = await page.locator('.nl-tile-canvas canvas').evaluate((canvas) => {
-      const context = (canvas as HTMLCanvasElement).getContext('2d');
-      const { data } = context!.getImageData(0, 0, canvas.clientWidth, canvas.clientHeight);
-      let painted = 0;
-      for (let i = 3; i < data.length; i += 4) if (data[i] > 0) painted++;
-      return painted;
-    });
+    const drawn = await page
+      .locator('.nl-tile-canvas canvas')
+      .first()
+      .evaluate((canvas) => {
+        const context = (canvas as HTMLCanvasElement).getContext('2d');
+        const { data } = context!.getImageData(0, 0, canvas.clientWidth, canvas.clientHeight);
+        let painted = 0;
+        for (let i = 3; i < data.length; i += 4) if (data[i] > 0) painted++;
+        return painted;
+      });
     expect(drawn).toBeGreaterThan(1000);
 
     await page.screenshot({ path: `${SCREENS}/tiles-vector-${theme}.png` });
@@ -239,5 +242,100 @@ test('asks once where a tile is in the list', async ({ page }) => {
     (message) => message.type === 'locateTile' && JSON.stringify(message).includes('"zoom":2'),
   );
   expect(asked).toHaveLength(1);
+  expect(viewer.problems).toEqual([]);
+});
+
+/** Moves the mouse over a place of the drawn tile, in tile units (0–4096). */
+async function pointAt(page: Page, x: number, y: number) {
+  const box = (await page.locator('.nl-tile-overlay').boundingBox())!;
+  const pad = Math.round(box.width / 16);
+  const scale = (box.width - 2 * pad) / 4096;
+  await page.mouse.move(box.x + pad + x * scale, box.y + pad + y * scale);
+}
+
+const featureCards = (page: Page) => page.locator('.nl-tile-feature');
+const attributes = (page: Page) =>
+  page.locator('.nl-tile-attributes').first().locator('dt, .nl-attribute-value');
+
+test('shows the attributes of the features under the pointer', async ({ page }) => {
+  const viewer = await openTiles(page, 'sample.mbtiles');
+  await expect(address(page)).toHaveText('1/1/1');
+  await expect(page.locator('.nl-tile-feature-list')).toContainText('Point at a feature');
+
+  // Inside the lake, away from the place in it.
+  await pointAt(page, 800, 800);
+  await expect(featureCards(page)).toHaveCount(1);
+  await expect(featureCards(page).locator('.nl-tile-feature-head')).toHaveText(
+    'waterPolygon · id 20',
+  );
+  await expect(attributes(page)).toHaveText(['kind', 'lake', 'area', '1.5']);
+  await expect(page.locator('.nl-attribute-type')).toHaveText(['string', 'double']);
+  await expect(page.locator('.nl-tile-overlay')).toHaveClass(/nl-pointing/);
+  const lit = await page.locator('.nl-tile-overlay').evaluate((canvas) => {
+    const context = (canvas as HTMLCanvasElement).getContext('2d')!;
+    const { data } = context.getImageData(0, 0, canvas.clientWidth, canvas.clientHeight);
+    let painted = 0;
+    for (let i = 3; i < data.length; i += 4) if (data[i] > 0) painted++;
+    return painted;
+  });
+  expect(lit).toBeGreaterThan(1000);
+  await page.screenshot({ path: `${SCREENS}/tiles-inspect-dark.png` });
+
+  // The place inside the lake is on top of it.
+  await pointAt(page, 1101, 1200);
+  await expect(featureCards(page).locator('.nl-tile-layer-name')).toHaveText(['places', 'water']);
+  await expect(attributes(page)).toHaveText([
+    'name',
+    'Place 1/1/1',
+    'population',
+    '2000',
+    'capital',
+    'false',
+  ]);
+
+  // Empty space shows the hint again.
+  await pointAt(page, 3500, 3800);
+  await expect(featureCards(page)).toHaveCount(0);
+  expect(viewer.problems).toEqual([]);
+});
+
+test('keeps features in view with a click, and steps through them with [ and ]', async ({
+  page,
+}) => {
+  const viewer = await openTiles(page, 'sample.mbtiles');
+  await pointAt(page, 800, 800);
+  await page.mouse.down();
+  await page.mouse.up();
+  await expect(page.locator('.nl-tile-feature-list')).toHaveClass(/nl-pinned/);
+  await pointAt(page, 3500, 3800);
+  await expect(featureCards(page).locator('.nl-tile-layer-name')).toHaveText(['water']);
+
+  // Escape lets go.
+  await page.keyboard.press('Escape');
+  await expect(featureCards(page)).toHaveCount(0);
+
+  // The topmost feature first: the places, then the road, then the lake.
+  await preview(page).focus();
+  await page.keyboard.press(']');
+  await expect(attributes(page).nth(1)).toHaveText('Köprübaşı');
+  await page.keyboard.press(']');
+  await expect(attributes(page).nth(1)).toHaveText('Place 1/1/1');
+  await page.keyboard.press(']');
+  await expect(featureCards(page).locator('.nl-tile-layer-name')).toHaveText(['roads']);
+  await page.keyboard.press('[');
+  await expect(attributes(page).nth(1)).toHaveText('Place 1/1/1');
+
+  // Moving to another tile starts afresh there.
+  await page.keyboard.press('ArrowLeft');
+  await expect(address(page)).toHaveText('1/0/1');
+  await expect(featureCards(page)).toHaveCount(0);
+  expect(viewer.problems).toEqual([]);
+});
+
+test('leaves hidden layers out of what is under the pointer', async ({ page }) => {
+  const viewer = await openTiles(page, 'sample.mbtiles');
+  await page.getByRole('checkbox', { name: 'places' }).uncheck();
+  await pointAt(page, 1101, 1200);
+  await expect(featureCards(page).locator('.nl-tile-layer-name')).toHaveText(['water']);
   expect(viewer.problems).toEqual([]);
 });

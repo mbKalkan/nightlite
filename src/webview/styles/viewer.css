@@ -1509,6 +1509,7 @@ body.vscode-high-contrast .nl-json-key {
 }
 
 .nl-tile-canvas {
+  position: relative;
   flex: 1 1 auto;
   width: 100%;
   min-width: 240px;
@@ -1521,24 +1522,127 @@ body.vscode-high-contrast .nl-json-key {
   display: block;
 }
 
-.nl-tile-layers {
-  flex: 0 0 220px;
+/* Highlights go on a canvas of their own over the drawing, which takes the pointer. */
+.nl-tile-overlay {
+  position: absolute;
+  inset: 0;
+}
+
+.nl-tile-overlay.nl-pointing {
+  cursor: pointer;
+}
+
+.nl-tile-side {
+  display: flex;
+  flex: 0 0 260px;
+  flex-direction: column;
+  gap: 20px;
   min-width: 0;
 }
 
-@container (max-width: 560px) {
+@container (max-width: 600px) {
   .nl-tile-stage {
     flex-direction: column;
   }
 
-  .nl-tile-layers {
+  .nl-tile-side {
     flex: none;
     width: 100%;
   }
 }
 
-.nl-tile-layers .nl-heading {
+.nl-tile-side .nl-heading {
   margin-top: 0;
+}
+
+.nl-tile-feature-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Features kept in view by a click are marked as such. */
+.nl-tile-feature-list.nl-pinned {
+  padding-left: 8px;
+  border-left: 2px solid var(--vscode-focusBorder);
+}
+
+.nl-tile-feature-list .nl-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.nl-tile-feature + .nl-tile-feature {
+  padding-top: 10px;
+  border-top: 1px solid var(--nl-border);
+}
+
+.nl-tile-feature-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  align-items: center;
+}
+
+.nl-tile-feature-head .nl-tile-layer-facts {
+  padding: 0;
+}
+
+.nl-tile-attributes {
+  display: grid;
+  grid-template-columns: minmax(48px, max-content) minmax(0, 1fr);
+  gap: 2px 12px;
+  margin: 6px 0 0 22px;
+  font-size: 12px;
+}
+
+.nl-tile-attributes dt {
+  color: var(--vscode-descriptionForeground);
+  font-family: var(--vscode-editor-font-family, monospace);
+  overflow-wrap: anywhere;
+}
+
+.nl-tile-attributes dd {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  justify-content: space-between;
+  min-width: 0;
+  margin: 0;
+}
+
+.nl-attribute-value {
+  min-width: 0;
+  font-family: var(--vscode-editor-font-family, monospace);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.nl-attribute-string {
+  color: var(--vscode-debugTokenExpression-string, inherit);
+}
+
+.nl-attribute-int,
+.nl-attribute-uint,
+.nl-attribute-sint,
+.nl-attribute-float,
+.nl-attribute-double {
+  color: var(--vscode-debugTokenExpression-number, inherit);
+}
+
+.nl-attribute-bool {
+  color: var(--vscode-debugTokenExpression-boolean, inherit);
+}
+
+body.vscode-high-contrast .nl-attribute-value {
+  color: inherit;
+}
+
+.nl-attribute-type {
+  flex: none;
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
 }
 
 .nl-tile-layer-list {

@@ -310,6 +310,11 @@ export interface ViewerStrings {
   layerExtent: string;
   tileLayersHeading: string;
   tilesErrorTitle: string;
+  /** The features under the pointer, or kept in view, with their attributes. */
+  featuresHeading: string;
+  inspectHint: string;
+  featureId: string;
+  noAttributes: string;
 }
 
 export interface LoadMessage {
