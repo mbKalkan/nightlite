@@ -22,6 +22,8 @@ type Place = Pick<Anchor, 'column' | 'row'>;
 const compare = (a: Place, b: Place) => a.column - b.column || a.row - b.row;
 
 const SELECT = 'SELECT tile_column AS c, tile_row AS r FROM main.tiles WHERE zoom_level = ?';
+const FORWARD = `${SELECT} AND (tile_column, tile_row) >= (?, ?) ORDER BY tile_column, tile_row LIMIT ? OFFSET ?`;
+const BACKWARD = `${SELECT} AND (tile_column, tile_row) <= (?, ?) ORDER BY tile_column DESC, tile_row DESC LIMIT ? OFFSET ?`;
 
 /**
  * Lists one zoom level's tiles in the order of the tiles index, by column and then row, a page at
@@ -48,23 +50,54 @@ export class TileLister {
   /** `total` is the zoom level's tile count. */
   page(start: number, count: number, total: number): TilePage {
     if (!this.ends) {
-      return this.read(`${SELECT} ORDER BY tile_column, tile_row LIMIT ? OFFSET ?`, [
+      const tiles = this.rows(`${SELECT} ORDER BY tile_column, tile_row LIMIT ? OFFSET ?`, [
         this.zoom,
         count,
         start,
-      ], start, count);
+      ]);
+      return { start, tiles, end: tiles.length < count };
     }
-    const anchors = this.known(total);
     const last = start + count - 1;
-    const below = nearest(anchors, start, -1);
-    const above = nearest(anchors, last, 1);
-    if (below && start - below.position <= NEAR) {
-      return this.forward(below, start - below.position, start, count);
+    // The listed tile nearest the page, in it or on either side.
+    let near: Anchor | undefined;
+    let distance = Infinity;
+    for (const anchor of this.known(total)) {
+      const away = Math.max(start - anchor.position, anchor.position - last, 0);
+      if (away < distance) {
+        near = anchor;
+        distance = away;
+      }
     }
-    if (above && above.position - last <= NEAR) {
-      return this.backward(above, above.position - last, last, count);
+    if (!near || distance > NEAR) {
+      near = { position: start, ...this.estimate(start, total) };
     }
-    return this.forward({ position: start, ...this.estimate(start, total) }, 0, start, count);
+    // Read back from it to the page's start, and on from it to the page's end.
+    const back = near.position > start ? Math.min(count, near.position - start + 1) : 0;
+    const before = back
+      ? this.rows(BACKWARD, [
+          this.zoom,
+          near.column,
+          near.row,
+          back,
+          Math.max(0, near.position - last),
+        ]).reverse()
+      : [];
+    const ahead = back ? Math.max(0, last - near.position) : count;
+    const after =
+      ahead > 0
+        ? this.rows(FORWARD, [
+            this.zoom,
+            near.column,
+            near.row,
+            ahead,
+            Math.max(0, start - near.position) + (back ? 1 : 0),
+          ])
+        : [];
+    const tiles = [...before, ...after];
+    // Short of tiles before a listed one, the page starts later than asked.
+    const first = back ? Math.min(near.position, last) - before.length + 1 : start;
+    this.rememberPage(first, tiles);
+    return { start: first, tiles, end: after.length < ahead };
   }
 
   /**
@@ -102,7 +135,10 @@ export class TileLister {
         Math.max(1, this.key(this.ends.last) - this.key(this.ends.first) + 1)) *
         total,
     );
-    return this.place(low <= high ? Math.min(high, Math.max(low, guess)) : Math.round((low + high) / 2), target);
+    return this.place(
+      low <= high ? Math.min(high, Math.max(low, guess)) : Math.round((low + high) / 2),
+      target,
+    );
   }
 
   /** Lists the tile at or after a place at `position`, so the list around it reads from there. */
@@ -123,34 +159,9 @@ export class TileLister {
     return row.n;
   }
 
-  private forward(from: Anchor, skip: number, start: number, count: number): TilePage {
-    return this.read(
-      `${SELECT} AND (tile_column, tile_row) >= (?, ?) ORDER BY tile_column, tile_row LIMIT ? OFFSET ?`,
-      [this.zoom, from.column, from.row, count, skip],
-      start,
-      count,
-    );
-  }
-
-  /** Reads back from a listed tile, so the page meets it without gaps or repeats. */
-  private backward(from: Anchor, skip: number, last: number, count: number): TilePage {
-    const statement = this.statement(
-      `${SELECT} AND (tile_column, tile_row) <= (?, ?) ORDER BY tile_column DESC, tile_row DESC LIMIT ? OFFSET ?`,
-    );
-    const rows = (
-      statement.all(this.zoom, from.column, from.row, count, skip) as { c: unknown; r: unknown }[]
-    ).reverse();
-    const start = last - rows.length + 1;
-    const tiles = rows.map(({ c, r }): [number, number] => [Number(c), Number(r)]);
-    this.rememberPage(start, tiles);
-    return { start, tiles, end: false };
-  }
-
-  private read(sql: string, params: SQLInputValue[], start: number, count: number): TilePage {
+  private rows(sql: string, params: SQLInputValue[]): [number, number][] {
     const rows = this.statement(sql).all(...params) as { c: unknown; r: unknown }[];
-    const tiles = rows.map(({ c, r }): [number, number] => [Number(c), Number(r)]);
-    if (this.ends) this.rememberPage(start, tiles);
-    return { start, tiles, end: rows.length < count };
+    return rows.map(({ c, r }): [number, number] => [Number(c), Number(r)]);
   }
 
   private rememberPage(start: number, tiles: [number, number][]): void {
@@ -224,17 +235,6 @@ export class TileLister {
     }
     return statement;
   }
-}
-
-function nearest(anchors: Anchor[], position: number, direction: -1 | 1): Anchor | undefined {
-  let best: Anchor | undefined;
-  for (const anchor of anchors) {
-    const distance = (anchor.position - position) * direction;
-    if (distance >= 0 && (!best || distance < (best.position - position) * direction)) {
-      best = anchor;
-    }
-  }
-  return best;
 }
 
 /**

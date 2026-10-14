@@ -25,9 +25,15 @@ for (const theme of ['dark', 'light', 'hcDark', 'hcLight'] as ThemeName[]) {
     // The metadata's center is 0,0 at zoom 1: the tile south-east of the middle.
     await expect(address(page)).toHaveText('1/1/1');
     await expect(page.locator('.nl-address')).toHaveValue('1/1/1');
-    await expect(facts(page)).toHaveText(/^Vector tile · 3 layers · 4 features · \d+ B with gzip, \d+ B uncompressed$/);
+    await expect(facts(page)).toHaveText(
+      /^Vector tile · 3 layers · 4 features · \d+ B with gzip, \d+ B uncompressed$/,
+    );
     await expect(page.locator('.nl-tile-layer-name')).toHaveText(['places', 'roads', 'water']);
-    await expect(page.locator('.nl-tile-layer-facts')).toHaveText(['2 points', '1 line', '1 polygon']);
+    await expect(page.locator('.nl-tile-layer-facts')).toHaveText([
+      '2 points',
+      '1 line',
+      '1 polygon',
+    ]);
     await expect(page.locator('.nl-select option')).toHaveText([
       '0 · 1 tile',
       '1 · 4 tiles',
@@ -207,5 +213,31 @@ test('reads tilesets whose tiles are a view over shared images', async ({ page }
   await page.locator('.nl-select').selectOption('1');
   await expect(address(page)).toHaveText('1/0/0');
   await expect(listRows(page)).toHaveCount(4);
+  expect(viewer.problems).toEqual([]);
+});
+
+test('puts the layers under the drawing in a narrow editor', async ({ page }) => {
+  await page.setViewportSize({ width: 720, height: 760 });
+  const viewer = await openTiles(page, 'sample.mbtiles');
+  await expect(page.locator('.nl-tile-layer-name')).toHaveCount(3);
+  const drawing = await page.locator('.nl-tile-canvas').boundingBox();
+  const layers = await page.locator('.nl-tile-layers').boundingBox();
+  expect(layers!.y).toBeGreaterThan(drawing!.y + drawing!.height);
+  expect(drawing!.width).toBeGreaterThanOrEqual(240);
+  await page.screenshot({ path: `${SCREENS}/tiles-narrow-dark.png` });
+  expect(viewer.problems).toEqual([]);
+});
+
+test('asks once where a tile is in the list', async ({ page }) => {
+  const viewer = await openTiles(page, 'sample.mbtiles');
+  await expect(selectedRow(page)).toHaveText('11');
+  const box = page.locator('.nl-address');
+  await box.fill('2/3/1');
+  await box.press('Enter');
+  await expect(selectedRow(page)).toHaveText('31');
+  const asked = (await viewer.sent()).filter(
+    (message) => message.type === 'locateTile' && JSON.stringify(message).includes('"zoom":2'),
+  );
+  expect(asked).toHaveLength(1);
   expect(viewer.problems).toEqual([]);
 });

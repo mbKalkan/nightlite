@@ -1,4 +1,4 @@
-import { readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { extname, isAbsolute, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type { Page } from '@playwright/test';
@@ -8,6 +8,7 @@ import { TableReader } from '../../src/extension/database/rows';
 import { readSchema } from '../../src/extension/database/schema';
 import { READ_OPTIONS, connectionTarget } from '../../src/extension/database/target';
 import { TileLister, readTile } from '../../src/extension/database/tiles';
+import { readFileHeader } from '../../src/extension/fileHeader';
 import { answer } from '../../src/extension/requests';
 import { viewerStrings } from '../../src/extension/strings';
 import { buildWebviewHtml } from '../../src/extension/webviewHtml';
@@ -17,7 +18,7 @@ import type {
   WebviewToHostMessage,
 } from '../../src/shared/protocol';
 import { zoomLevels } from '../../src/shared/mbtiles';
-import { HEADER_SIZE, describeFile } from '../../src/shared/sqliteHeader';
+import { describeFile } from '../../src/shared/sqliteHeader';
 import { themes, type ThemeName } from './themes';
 
 interface Theme {
@@ -238,8 +239,9 @@ export async function openViewer(page: Page, theme: ThemeName) {
     async load(fixture: string, { schema = true, count = true }: HostOptions = {}) {
       // Files outside the fixtures, like ones kept in test/fixtures/private, by their own path.
       const path = isAbsolute(fixture) ? fixture : join('test/fixtures', fixture);
-      const bytes = readFileSync(path).subarray(0, HEADER_SIZE);
-      const result = describeFile(path, bytes, statSync(path).size);
+      // As the extension does: the header only, since files can be tens of gigabytes.
+      const header = await readFileHeader(path);
+      const result = describeFile(path, header.bytes, header.size);
       if ('error' in result) {
         await this.post({ type: 'error', fileName: fixture, error: result.error, strings });
         await page.waitForSelector('.nl-error');

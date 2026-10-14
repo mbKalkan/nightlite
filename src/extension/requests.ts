@@ -142,7 +142,11 @@ export async function answer(
       try {
         await post(await answerTiles(message, backend));
       } catch (error) {
-        await post({ type: 'tilesError', request: message.request, ...classifyDatabaseError(error) });
+        await post({
+          type: 'tilesError',
+          request: message.request,
+          ...classifyDatabaseError(error),
+        });
       }
       return;
     case 'cell':
@@ -190,7 +194,12 @@ async function answerTiles(
   switch (message.type) {
     case 'tiles': {
       const { zoom, start, count, total } = message;
-      return { type: 'tilePage', request, zoom, page: await backend.tilePage(zoom, start, count, total) };
+      return {
+        type: 'tilePage',
+        request,
+        zoom,
+        page: await backend.tilePage(zoom, start, count, total),
+      };
     }
     case 'locateTile':
       return {
@@ -200,6 +209,11 @@ async function answerTiles(
         position: await backend.locateTile(message.key, message.total),
       };
     case 'tile':
-      return { type: 'tileContent', request, key: message.key, content: await backend.tile(message.key) };
+      return {
+        type: 'tileContent',
+        request,
+        key: message.key,
+        content: await backend.tile(message.key),
+      };
   }
 }

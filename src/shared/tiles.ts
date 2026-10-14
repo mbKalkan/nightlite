@@ -44,7 +44,7 @@ export const sameTile = (a: TileKey | undefined, b: TileKey | undefined): boolea
  */
 export function parseTileAddress(text: string, scheme: RowScheme): TileKey | undefined {
   const path = text.trim().replace(/[?#].*$/, '');
-  const match = /(\d+)[^\d]+(\d+)[^\d]+(\d+)(?:\.[a-z0-9]+)?\/?$/i.exec(path);
+  const match = /(?:^|[^\d.])(\d+)[^\d]+(\d+)[^\d]+(\d+)(?:\.[a-z0-9]+)?\/?$/i.exec(path);
   if (!match) return undefined;
   const [zoom, column, shown] = match.slice(1).map(Number);
   const size = 2 ** zoom;
@@ -105,7 +105,8 @@ export function stepTile(key: TileKey, step: TileStep): TileKey | undefined {
 }
 
 /** What a tile's bytes hold, by their first bytes. */
-export type TileKind = 'png' | 'jpeg' | 'webp' | 'gif' | 'gzip' | 'zlib' | 'pbf' | 'empty' | 'unknown';
+export type TileKind =
+  'png' | 'jpeg' | 'webp' | 'gif' | 'gzip' | 'zlib' | 'pbf' | 'empty' | 'unknown';
 
 /** Image tiles a browser can show. */
 export const IMAGE_KINDS: ReadonlySet<TileKind> = new Set(['png', 'jpeg', 'webp', 'gif']);
@@ -117,7 +118,10 @@ export function tileKind(bytes: Uint8Array): TileKind {
   if (bytes.length === 0) return 'empty';
   if (startsWith(bytes, [0x89, 0x50, 0x4e, 0x47])) return 'png';
   if (startsWith(bytes, [0xff, 0xd8, 0xff])) return 'jpeg';
-  if (startsWith(bytes, [0x52, 0x49, 0x46, 0x46]) && startsWith(bytes, [0x57, 0x45, 0x42, 0x50], 8)) {
+  if (
+    startsWith(bytes, [0x52, 0x49, 0x46, 0x46]) &&
+    startsWith(bytes, [0x57, 0x45, 0x42, 0x50], 8)
+  ) {
     return 'webp';
   }
   if (startsWith(bytes, [0x47, 0x49, 0x46, 0x38])) return 'gif';

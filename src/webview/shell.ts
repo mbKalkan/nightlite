@@ -261,7 +261,8 @@ export class Shell {
       case 'zoomCountsEnd':
         tiles.counting = false;
         // Stopped while shown means it failed; stopped for a table's count, it resumes here.
-        tiles.failed = !message.complete && (this.summary !== undefined || this.browser !== undefined);
+        tiles.failed =
+          !message.complete && (this.summary !== undefined || this.browser !== undefined);
         break;
     }
     this.summary?.renderZooms();

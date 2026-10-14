@@ -497,6 +497,155 @@ create(join(FIXTURES, 'dedup.mbtiles'), (db) => {
   eachTile(1, 1, (z, x, y) => map.run(z, x, tmsRow(z, y), 'ocean'));
 });
 
+// A made-up town for the README's tile browser picture: streets, a river, parks, buildings and
+// places, one zoom 14 tile and its eight neighbors, each drawn from its own seed.
+function townTile(x, y) {
+  const next = random(x * 7919 + y * 104729);
+  const between = (low, high) => low + Math.round(next() * (high - low));
+  const riverAt = (px) => 2700 + Math.round(320 * Math.sin((px + x * 4096) / 650));
+  const inRiver = (py, px) => Math.abs(py - riverAt(px)) < 260;
+  const streets = [];
+  const avenues = [];
+  for (let at = 350; at < 4096; at += 750) {
+    const wobble = between(-60, 60);
+    streets.push([
+      [-64, at],
+      [1400, at + wobble],
+      [2800, at - wobble],
+      [4160, at],
+    ]);
+    avenues.push([
+      [at, -64],
+      [at + wobble, 1400],
+      [at - wobble, 2800],
+      [at, 4160],
+    ]);
+  }
+  const roads = [...streets, ...avenues].map((points, i) => ({
+    id: i + 1,
+    type: 2,
+    points,
+    properties: { class: i % 3 === 0 ? 'primary' : 'street', lanes: i % 3 === 0 ? 4 : 2 },
+  }));
+  roads.push({
+    id: 99,
+    type: 2,
+    points: [
+      [-64, 4000],
+      [1800, 2200],
+      [4160, 300],
+    ],
+    properties: { class: 'motorway', lanes: 6 },
+  });
+  const bank = (offset, from, to, step) => {
+    const points = [];
+    for (let px = from; step > 0 ? px <= to : px >= to; px += step) {
+      points.push([px, riverAt(px) + offset]);
+    }
+    return points;
+  };
+  const water = [
+    {
+      id: 1,
+      type: 3,
+      points: [...bank(-180, -64, 4160, 128), ...bank(180, 4160, -64, -128)],
+      properties: { kind: 'river', name: 'Akarsu' },
+    },
+  ];
+  const parks = [];
+  const buildings = [];
+  let id = 1;
+  for (let left = 350; left < 4096; left += 750) {
+    for (let top = 350; top < 4096; top += 750) {
+      const wet = [100, 375, 650].some((dx) =>
+        [100, 375, 650].some((dy) => inRiver(top + dy, left + dx)),
+      );
+      if (next() < 0.15 && !wet) {
+        parks.push({
+          id: parks.length + 1,
+          type: 3,
+          points: [
+            [left + 60, top + 60],
+            [left + 690, top + 60],
+            [left + 690, top + 690],
+            [left + 60, top + 690],
+          ],
+          properties: { kind: 'park', name: `Park ${parks.length + 1}` },
+        });
+        continue;
+      }
+      // Three by three lots, a building on most of them.
+      for (let lot = 0; lot < 9; lot++) {
+        if (next() < 0.2) continue;
+        const width = between(90, 170);
+        const height = between(90, 170);
+        const bx = left + 70 + (lot % 3) * 200 + between(0, 190 - width);
+        const by = top + 70 + Math.floor(lot / 3) * 200 + between(0, 190 - height);
+        if (inRiver(by + height / 2, bx + width / 2)) continue;
+        buildings.push({
+          id: id++,
+          type: 3,
+          points: [
+            [bx, by],
+            [bx + width, by],
+            [bx + width, by + height],
+            [bx, by + height],
+          ],
+          properties: { height: between(3, 40), levels: between(1, 12) },
+        });
+      }
+    }
+  }
+  const names = ['Old Town', 'Harbor', 'Market', 'Station', 'University', 'Bridge'];
+  const places = names.map((name, i) => ({
+    id: i + 1,
+    type: 1,
+    points: [[between(300, 3800), between(300, 3800)]],
+    properties: { name, rank: i + 1 },
+  }));
+  return gzipSync(
+    Buffer.from([
+      ...layer('water', water),
+      ...layer('parks', parks),
+      ...layer('buildings', buildings),
+      ...layer('roads', roads),
+      ...layer('places', places),
+    ]),
+    { level: 9 },
+  );
+}
+
+create(join(FIXTURES, 'showcase.mbtiles'), (db) => {
+  db.exec(`PRAGMA application_id = 0x4d504258; ${MBTILES_SCHEMA}`);
+  insertMetadata(db, [
+    ['name', 'Showcase town'],
+    ['description', 'A made-up town for screenshots'],
+    ['format', 'pbf'],
+    ['minzoom', '14'],
+    ['maxzoom', '14'],
+    ['bounds', '28.95,41,29,41.03'],
+    ['center', '28.9784,41.0082,14'],
+    [
+      'json',
+      JSON.stringify({
+        vector_layers: ['water', 'parks', 'buildings', 'roads', 'places'].map((id) => ({
+          id,
+          minzoom: 14,
+          maxzoom: 14,
+          fields: {},
+        })),
+      }),
+    ],
+  ]);
+  const insert = db.prepare('INSERT INTO tiles VALUES (?, ?, ?, ?)');
+  // The center, 28.9784,41.0082, is in tile 14/9510/6142.
+  for (let x = 9509; x <= 9511; x++) {
+    for (let y = 6141; y <= 6143; y++) {
+      insert.run(14, x, tmsRow(14, y), townTile(x, y));
+    }
+  }
+});
+
 // GeoPackage 1.3 with one feature table of points (GeoPackage binary geometry: header + WKB).
 create(
   join(FIXTURES, 'sample.gpkg'),

@@ -1371,6 +1371,8 @@ body.vscode-high-contrast .nl-json-key {
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
+  /* Rows are redrawn in place; the browser mustn't scroll to keep one of them still. */
+  overflow-anchor: none;
   outline: none;
   user-select: none;
 }
@@ -1403,6 +1405,13 @@ body.vscode-high-contrast .nl-json-key {
 .nl-tile-list-scroll:focus .nl-tile-row-selected {
   background: var(--vscode-list-activeSelectionBackground);
   color: var(--vscode-list-activeSelectionForeground, inherit);
+}
+
+/* High-contrast themes mark selection with an outline instead of a background. */
+.nl-tile-row-selected {
+  outline: 1px dotted
+    var(--vscode-list-activeSelectionBorder, var(--vscode-contrastActiveBorder, transparent));
+  outline-offset: -1px;
 }
 
 .nl-tile-list-scroll:focus .nl-tile-row-active {
@@ -1468,16 +1477,9 @@ body.vscode-high-contrast .nl-json-key {
 
 /* The drawing as large as the view allows, its layers beside it, or below in narrow views. */
 .nl-tile-stage {
-  display: grid;
-  grid-template-columns: minmax(240px, min(560px, calc(100vh - 190px))) minmax(200px, 340px);
+  display: flex;
   gap: 16px 24px;
-  align-items: start;
-}
-
-@container (max-width: 600px) {
-  .nl-tile-stage {
-    grid-template-columns: minmax(0, 1fr);
-  }
+  align-items: flex-start;
 }
 
 .nl-tile-frame {
@@ -1507,6 +1509,10 @@ body.vscode-high-contrast .nl-json-key {
 }
 
 .nl-tile-canvas {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 240px;
+  max-width: max(240px, min(640px, calc(100vh - 190px)));
   aspect-ratio: 1;
   background: var(--vscode-editor-background);
 }
@@ -1516,7 +1522,19 @@ body.vscode-high-contrast .nl-json-key {
 }
 
 .nl-tile-layers {
+  flex: 0 0 220px;
   min-width: 0;
+}
+
+@container (max-width: 560px) {
+  .nl-tile-stage {
+    flex-direction: column;
+  }
+
+  .nl-tile-layers {
+    flex: none;
+    width: 100%;
+  }
 }
 
 .nl-tile-layers .nl-heading {

@@ -156,7 +156,9 @@ export function viewerStrings(l10n: Localizer): ViewerStrings {
     zoomIn: l10n.t('Zoom in'),
     zoomOut: l10n.t('Zoom out'),
     noTileAt: l10n.t('There is no tile at {0}.'),
-    noTileHint: l10n.t('Move to a neighboring tile with the arrow keys, or change zoom with + and −.'),
+    noTileHint: l10n.t(
+      'Move to a neighboring tile with the arrow keys, or change zoom with + and −.',
+    ),
     emptyTile: l10n.t('This tile is empty.'),
     tileTooLarge: l10n.t('This tile is {0}, too large to show.'),
     tileDamaged: l10n.t("This tile's {0} data couldn't be uncompressed."),

@@ -259,14 +259,21 @@ export class TileBrowser {
     this.contentRequest = this.request();
     this.fallbackRequest = fallback ? this.contentRequest : 0;
     this.events.send({ type: 'tile', request: this.contentRequest, key });
-    this.ensureList();
-    this.reveal(key);
+    // A new list puts the tile in view itself.
+    if (!this.ensureList()) this.reveal(key);
   }
 
   /** Shows the first tile of a zoom level, in the order of the list. */
   private showFirst(zoom: number): void {
     this.firstRequest = this.request();
-    this.events.send({ type: 'tiles', request: this.firstRequest, zoom, start: 0, count: 1, total: 1 });
+    this.events.send({
+      type: 'tiles',
+      request: this.firstRequest,
+      zoom,
+      start: 0,
+      count: 1,
+      total: 1,
+    });
   }
 
   /** Puts the tile in view in the list: at once when it's listed, else once it's located. */
@@ -285,26 +292,29 @@ export class TileBrowser {
     });
   }
 
-  /** Makes the list for the shown zoom level once its tiles are counted. */
-  private ensureList(): void {
+  /**
+   * Makes the list for the shown zoom level once its tiles are counted, and puts the shown tile
+   * in view in it. False when the list there is already the right one.
+   */
+  private ensureList(): boolean {
     const zoom = this.view.tile?.zoom ?? this.view.zoom;
     const range = this.state.range;
-    if (zoom === undefined || !range) return;
+    if (zoom === undefined || !range) return false;
     const total = this.state.counts.get(zoom);
     const key = `${zoom}:${total}`;
-    if (key === this.listKey) return;
+    if (key === this.listKey) return false;
     this.listKey = key;
     this.list?.dispose();
     this.list = undefined;
     if (zoom < range.min || zoom > range.max || total === 0) {
       this.listPlace.replaceChildren(this.message(this.strings.noTiles));
-      return;
+      return true;
     }
     if (total === undefined) {
       this.listPlace.replaceChildren(
         this.message(this.state.failed ? this.strings.countFailed : this.strings.countingTiles),
       );
-      return;
+      return true;
     }
     this.listFrom = this.nextRequest;
     this.list = new TileList(zoom, total, this.view.scheme, this.strings, {
@@ -314,6 +324,7 @@ export class TileBrowser {
     });
     this.listPlace.replaceChildren(this.list.element);
     if (this.view.tile?.zoom === zoom) this.reveal(this.view.tile);
+    return true;
   }
 
   private renderZooms(): void {

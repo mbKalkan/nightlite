@@ -16,15 +16,19 @@ import { element, format } from '../views';
 import { drawVectorTile, layerColors } from './vectorDrawing';
 
 /** The buttons that move to another tile, with the keys that do the same. */
-const STEPS: { step: TileStep; icon: keyof typeof icons; label: keyof ViewerStrings; key: string }[] =
-  [
-    { step: 'out', icon: 'zoomOut', label: 'zoomOut', key: '−' },
-    { step: 'in', icon: 'zoomIn', label: 'zoomIn', key: '+' },
-    { step: 'west', icon: 'arrowLeft', label: 'moveWest', key: '←' },
-    { step: 'north', icon: 'arrowUp', label: 'moveNorth', key: '↑' },
-    { step: 'south', icon: 'arrowDown', label: 'moveSouth', key: '↓' },
-    { step: 'east', icon: 'arrowRight', label: 'moveEast', key: '→' },
-  ];
+const STEPS: {
+  step: TileStep;
+  icon: keyof typeof icons;
+  label: keyof ViewerStrings;
+  key: string;
+}[] = [
+  { step: 'out', icon: 'zoomOut', label: 'zoomOut', key: '−' },
+  { step: 'in', icon: 'zoomIn', label: 'zoomIn', key: '+' },
+  { step: 'west', icon: 'arrowLeft', label: 'moveWest', key: '←' },
+  { step: 'north', icon: 'arrowUp', label: 'moveNorth', key: '↑' },
+  { step: 'south', icon: 'arrowDown', label: 'moveSouth', key: '↓' },
+  { step: 'east', icon: 'arrowRight', label: 'moveEast', key: '→' },
+];
 
 const KEY_STEPS: Record<string, TileStep> = {
   ArrowLeft: 'west',

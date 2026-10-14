@@ -183,9 +183,11 @@ function readLayer(reader: Reader): TileLayer {
   reader.fields((number, wireType) => {
     if (number === 15 && wireType === 0) layer.version = reader.varint();
     else if (number === 1 && wireType === 2) layer.name = reader.string();
-    else if (number === 2 && wireType === 2) layer.features.push(readFeature(reader.sub(reader.span())));
+    else if (number === 2 && wireType === 2)
+      layer.features.push(readFeature(reader.sub(reader.span())));
     else if (number === 3 && wireType === 2) layer.keys.push(reader.string());
-    else if (number === 4 && wireType === 2) layer.values.push(readValue(reader.sub(reader.span())));
+    else if (number === 4 && wireType === 2)
+      layer.values.push(readValue(reader.sub(reader.span())));
     else if (number === 5 && wireType === 0) layer.extent = reader.varint();
   });
   return layer;
