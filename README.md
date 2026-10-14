@@ -56,6 +56,12 @@ tileset opens at once.
 - <kbd>Ctrl</kbd>+<kbd>C</kbd> copies the selection with full values, even where the grid cuts them
   short: one cell as it is, more as tab-separated text that spreadsheets paste into columns.
   **Copy as Markdown Table**, in the context menu, copies it as a table for a README or an issue
+- Point an AI assistant or a teammate at some rows: right-click and choose **Copy Reference** to
+  get `data/music.sqlite, table "albums", rowid 5, column "title"` on the clipboard, ready to
+  paste into a chat with Claude Code or any assistant that works in your workspace. **Copy
+  Reference with Text** adds the values, one quoted or more as a Markdown table. It names a
+  query's results by their statement, and a table in the sidebar by its name, with the statement
+  that created it
 - **Export Rows…** writes a table's rows as shown, sorted and filtered, or every row of a query,
   to a CSV or JSON file, with values whole: ten million rows take about fifteen seconds
 - Cell details beside the grid: JSON indented and colored, long text in full, BLOBs as the image
@@ -97,7 +103,8 @@ tileset opens at once.
   type, and zoom levels against the tiles. Changes are marked until you save (<kbd>Ctrl</kbd>+<kbd>S</kbd>),
   <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes them, and nothing is written before you save
 - **Save Tile…** writes the tile shown to a file you pick: images as they are, vector tiles as
-  plain `.pbf`, or gzip-compressed when the name ends in `.gz`
+  plain `.pbf`, or gzip-compressed when the name ends in `.gz`; **Copy Reference** names it, as
+  in `tiles.mbtiles, tile 14/8529/5974 (XYZ)`
 - Arrow keys move to the neighboring tiles, <kbd>+</kbd> and <kbd>−</kbd> between zoom levels;
   rows numbered as in tile URLs (XYZ) or as MBTiles stores them (TMS)
 

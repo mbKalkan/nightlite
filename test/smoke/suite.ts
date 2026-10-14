@@ -213,7 +213,7 @@ const tests: Record<string, () => Promise<void>> = {
     const session = new QuerySession(
       () => document.queryConnection(),
       async (message) => messages.push(message),
-      async () => {},
+      { writeClipboard: async () => {}, copyReference: async () => {} },
     );
     const last = <T extends HostToWebviewMessage['type']>(type: T) =>
       messages.filter((message) => message.type === type).at(-1) as
@@ -384,9 +384,26 @@ const tests: Record<string, () => Promise<void>> = {
       'nightlite.sortDescending',
       'nightlite.clearSort',
       'nightlite.exportRows',
+      'nightlite.copyReference',
+      'nightlite.copyReferenceWithText',
     ]) {
       assert.ok(commands.includes(command), command);
     }
+  },
+
+  async 'copies a reference to the file in view, by its path in the workspace'() {
+    await open('sample.sqlite');
+    await vscode.env.clipboard.writeText('');
+    // The overview has no place in the file to name, so the reference is the file alone.
+    const start = Date.now();
+    let text = '';
+    while (text !== 'sample.sqlite' && Date.now() - start < 30_000) {
+      await vscode.commands.executeCommand('nightlite.copyReference');
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      text = await vscode.env.clipboard.readText();
+    }
+    assert.equal(text, 'sample.sqlite');
+    await vscode.commands.executeCommand('workbench.action.closeAllEditors');
   },
 
   async 'opens a file that is not a database without failing'() {

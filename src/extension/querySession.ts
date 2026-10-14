@@ -1,8 +1,10 @@
 import type { HostToWebviewMessage, ObjectInfo, WebviewToHostMessage } from '../shared/protocol';
+import { cellsText } from '../shared/reference';
 import { checkQuery } from '../shared/sqlCheck';
 import type { DatabaseClient } from './database/client';
 import type { QueryProgress } from './database/query';
 import { classifyDatabaseError } from './databaseErrors';
+import type { HostServices } from './requests';
 
 /** What a query needs from its worker: `DatabaseClient`'s query calls. */
 export type QueryConnection = Pick<
@@ -47,6 +49,9 @@ export function isQueryMessage(message: WebviewToHostMessage): message is QueryM
 
 type Post = (message: HostToWebviewMessage) => Thenable<boolean> | Promise<unknown>;
 
+/** Where copies of results go: the clipboard, as they are or after a reference (D-026). */
+export type Clipboard = Pick<HostServices, 'writeClipboard' | 'copyReference'>;
+
 /** Each step reads rows for this long, so a stop or the grid's questions wait at most that. */
 const STEP = 50;
 /** Progress goes to the page this often while rows come in. */
@@ -73,7 +78,7 @@ export class QuerySession {
   constructor(
     private readonly connect: QueryConnector,
     private readonly post: Post,
-    private readonly writeClipboard: (text: string) => Thenable<void> | Promise<void>,
+    private readonly clipboard: Clipboard,
   ) {}
 
   async answer(message: QueryMessage): Promise<void> {
@@ -188,7 +193,9 @@ export class QuerySession {
         }
         case 'copy': {
           const { text, ...result } = await connection.queryCopy(message.range);
-          await this.writeClipboard(text);
+          await (message.reference === undefined
+            ? this.clipboard.writeClipboard(text)
+            : this.clipboard.copyReference(message.reference, cellsText(message.range, text)));
           await this.post({ type: 'copied', request, name, query, result });
           return;
         }
@@ -227,13 +234,9 @@ export class EditorSessions {
   readonly queries: QuerySession;
   readonly views: QuerySession;
 
-  constructor(
-    connect: QueryConnector,
-    post: Post,
-    writeClipboard: (text: string) => Thenable<void> | Promise<void>,
-  ) {
-    this.queries = new QuerySession(connect, post, writeClipboard);
-    this.views = new QuerySession(connect, post, writeClipboard);
+  constructor(connect: QueryConnector, post: Post, clipboard: Clipboard) {
+    this.queries = new QuerySession(connect, post, clipboard);
+    this.views = new QuerySession(connect, post, clipboard);
   }
 
   answer(message: QueryMessage): Promise<void> {

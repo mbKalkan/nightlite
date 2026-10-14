@@ -11,5 +11,7 @@
   "command.sortAscending": "Sort Ascending",
   "command.sortDescending": "Sort Descending",
   "command.clearSort": "Clear Sort",
-  "command.exportRows": "Export Rows…"
+  "command.exportRows": "Export Rows…",
+  "command.copyReference": "Copy Reference",
+  "command.copyReferenceWithText": "Copy Reference with Text"
 }

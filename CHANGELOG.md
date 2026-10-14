@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Copy Reference** in the right-click menu puts the file's path and the place on the clipboard,
+  ready to paste into a chat with an AI assistant: the selected cells, such as
+  `data/music.sqlite, table "albums", rowid 5, column "title"` or
+  `…, rowids 2 to 9, columns "title" to "price"`; a query's results, named by their statement; a
+  table, view, index or trigger in the sidebar; or the tile shown. **Copy Reference with Text**
+  adds what is there: the value, the cells as a Markdown table, or the statement that created
+  the object. Both are in the Command Palette too, where they describe what is in view.
+
 ## [1.0.0] - 2026-10-14
 
 Query, sort, filter and export rows; browse and inspect MBTiles tiles and edit their metadata;

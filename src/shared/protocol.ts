@@ -204,6 +204,26 @@ export interface ViewerStrings {
   copiedStopped: string;
   copiedCut: string;
   copyFailed: string;
+  /**
+   * The parts of a copied reference's place (D-026); `{0}` and `{1}` are quoted names, rowids,
+   * row numbers, a tile's address, or a statement as inline code.
+   */
+  refTable: string;
+  refView: string;
+  refIndex: string;
+  refTrigger: string;
+  refQuery: string;
+  refRowid: string;
+  refRowids: string;
+  refRowidRange: string;
+  refRow: string;
+  refRows: string;
+  refColumn: string;
+  refColumns: string;
+  refSorted: string;
+  refSortedDescending: string;
+  refFiltered: string;
+  refTile: string;
   /** The cell detail panel: its name, the toolbar button that shows it, and its parts. */
   reopenWith: string;
   cellDetail: string;
@@ -495,6 +515,12 @@ export interface CopySelectionMessage {
   markdown: boolean;
 }
 
+/** Copy Reference, or Copy Reference with Text, from the context menu or the Command Palette. */
+export interface CopyReferenceMessage {
+  type: 'copyReference';
+  withText: boolean;
+}
+
 /** A table's or view's columns and row estimate, answering `openObject`. */
 export interface ObjectInfoMessage {
   type: 'objectInfo';
@@ -779,6 +805,7 @@ export type HostToWebviewMessage =
   | SchemaErrorMessage
   | RevealMessage
   | CopySelectionMessage
+  | CopyReferenceMessage
   | OpenQueryMessage
   | SortRowsMessage
   | ExportRequestMessage
@@ -828,8 +855,23 @@ export type WebviewToHostMessage =
       count: number;
       total: number;
     }
-  /** Copies full values as tab-separated text; the extension host writes the clipboard. */
-  | { type: 'copy'; request: number; name: string; query?: number; range: CopyRange }
+  /**
+   * Copies full values as tab-separated text; the extension host writes the clipboard. With
+   * `reference`, the values follow a reference to where they are (D-026).
+   */
+  | {
+      type: 'copy';
+      request: number;
+      name: string;
+      query?: number;
+      range: CopyRange;
+      reference?: string;
+    }
+  /**
+   * Copies a reference to a place in the file, and what is there when there's `text`; the
+   * extension host puts the file's path before the place (D-026).
+   */
+  | { type: 'reference'; location: string; text?: string }
   /** Runs a statement from the query page, ending the one running (D-021). */
   | { type: 'runQuery'; run: number; sql: string }
   /** Works out a table's or view's rows sorted or filtered, ending the run before (D-022). */

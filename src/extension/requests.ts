@@ -15,6 +15,7 @@ import type {
   WebviewToHostMessage,
   ZoomRange,
 } from '../shared/protocol';
+import { cellsText } from '../shared/reference';
 import type { TileKey } from '../shared/tiles';
 import type { CopiedText } from './database/rows';
 import { classifyDatabaseError } from './databaseErrors';
@@ -60,6 +61,8 @@ type Post = (message: HostToWebviewMessage) => Thenable<boolean> | Promise<unkno
 /** What only the extension host can do for the webview: the clipboard, files the user picks. */
 export interface HostServices {
   writeClipboard(text: string): Thenable<void> | Promise<void>;
+  /** Puts a reference to a place in the file on the clipboard, and what's there (D-026). */
+  copyReference(location: string, text?: string): Thenable<void> | Promise<void>;
   /** Asks where to save a tile, offering `name`, and writes it there. */
   saveTile(name: string, stored: Uint8Array): Thenable<void> | Promise<void>;
   /** A metadata edit was made: VS Code marks the file changed and can undo it. */
@@ -201,6 +204,9 @@ export async function answer(
     case 'exportRows':
       await host.exportRows(message.source, message.name);
       return;
+    case 'reference':
+      await host.copyReference(message.location, message.text);
+      return;
     case 'saveTile': {
       let stored: Uint8Array | null;
       try {
@@ -238,7 +244,9 @@ export async function answer(
     case 'copy':
       try {
         const { text, ...result } = await backend.copy(message.name, message.range);
-        await host.writeClipboard(text);
+        await (message.reference === undefined
+          ? host.writeClipboard(text)
+          : host.copyReference(message.reference, cellsText(message.range, text)));
         await post({ type: 'copied', request: message.request, name: message.name, result });
       } catch (error) {
         await post({

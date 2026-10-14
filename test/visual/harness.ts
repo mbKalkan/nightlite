@@ -34,6 +34,7 @@ import type {
   WebviewToHostMessage,
 } from '../../src/shared/protocol';
 import { zoomLevels } from '../../src/shared/mbtiles';
+import { composeReference } from '../../src/shared/reference';
 import { describeFile } from '../../src/shared/sqliteHeader';
 import { themes, type ThemeName } from './themes';
 
@@ -180,6 +181,16 @@ export async function openViewer(page: Page, theme: ThemeName) {
   const postMetadata = () => post({ type: 'metadataState', state: metadata().state() });
   /** How long each step of a query waits, so a test can catch one running. */
   let queryPause = 0;
+  /** The file as a copied reference names it: the fixture as loaded. */
+  let referenceFile = '';
+  const clipboardServices = {
+    writeClipboard: async (text: string) => {
+      clipboard.push(text);
+    },
+    copyReference: async (location: string, text?: string) => {
+      clipboard.push(composeReference(referenceFile, location, text));
+    },
+  };
   const queries = new EditorSessions(
     () => {
       if (!database) throw new Error('No database loaded');
@@ -190,9 +201,7 @@ export async function openViewer(page: Page, theme: ThemeName) {
       };
     },
     post,
-    async (text) => {
-      clipboard.push(text);
-    },
+    clipboardServices,
   );
   hosts.set(page, (message: WebviewToHostMessage) =>
     answer(
@@ -237,9 +246,7 @@ export async function openViewer(page: Page, theme: ThemeName) {
       },
       post,
       {
-        writeClipboard: async (text) => {
-          clipboard.push(text);
-        },
+        ...clipboardServices,
         // As if the user took the name offered.
         saveTile: async (name, stored) => {
           saved.push({ name, bytes: tileBytes(stored, name) });
@@ -375,6 +382,7 @@ export async function openViewer(page: Page, theme: ThemeName) {
         copyFileSync(path, copy);
         path = copy;
       }
+      referenceFile = fixture;
       // As the extension does: the header only, since files can be tens of gigabytes.
       const header = await readFileHeader(path);
       const result = describeFile(path, header.bytes, header.size);

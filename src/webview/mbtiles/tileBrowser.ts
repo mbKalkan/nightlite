@@ -131,8 +131,18 @@ export class TileBrowser {
     });
     this.main.append(this.listPlace, this.preview.element);
     this.element.append(bar, this.main);
+    // The context menu offers Copy Reference for the tile shown.
+    this.element.dataset.vscodeContext = JSON.stringify({ webviewSection: 'tile' });
     this.markScheme();
     this.update();
+  }
+
+  /** The tile shown, by its address as shown, for Copy Reference; '' before one is. */
+  reference(): string {
+    const { tile, scheme } = this.view;
+    return tile
+      ? format(this.strings.refTile, `${tileAddress(tile, scheme)} (${scheme.toUpperCase()})`)
+      : '';
   }
 
   /** The tileset's metadata, zoom range or a zoom level's count arrived. */

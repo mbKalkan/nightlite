@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type { HostToWebviewMessage, WebviewToHostMessage } from '../shared/protocol';
+import { composeReference } from '../shared/reference';
 import { describeFile } from '../shared/sqliteHeader';
 import { DatabaseDocument } from './databaseDocument';
 import { classifyDatabaseError } from './databaseErrors';
@@ -55,6 +56,12 @@ export class ViewerProvider implements vscode.CustomEditorProvider<DatabaseDocum
       vscode.commands.registerCommand('nightlite.exportRows', () => provider.exportRows()),
       vscode.commands.registerCommand('nightlite.copyAsMarkdown', () =>
         provider.copySelection(true),
+      ),
+      vscode.commands.registerCommand('nightlite.copyReference', () =>
+        provider.copyReference(false),
+      ),
+      vscode.commands.registerCommand('nightlite.copyReferenceWithText', () =>
+        provider.copyReference(true),
       ),
       provider.edits,
     );
@@ -150,12 +157,22 @@ export class ViewerProvider implements vscode.CustomEditorProvider<DatabaseDocum
 
     const editor: Editor = { panel, document };
     const post = (message: HostToWebviewMessage) => panel.webview.postMessage(message);
+    const clipboard = {
+      writeClipboard: (text: string) => vscode.env.clipboard.writeText(text),
+      copyReference: (location: string, text?: string) =>
+        vscode.env.clipboard
+          .writeText(composeReference(referencePath(document.uri), location, text))
+          .then(() => {
+            vscode.window.setStatusBarMessage(
+              text
+                ? vscode.l10n.t('Copied reference with text')
+                : vscode.l10n.t('Copied reference'),
+              3000,
+            );
+          }),
+    };
     // A query's results hold whatever the file changes to since, so they're posted regardless.
-    const queries = new EditorSessions(
-      () => document.queryConnection(),
-      post,
-      (text) => vscode.env.clipboard.writeText(text),
-    );
+    const queries = new EditorSessions(() => document.queryConnection(), post, clipboard);
     const subscriptions = [
       panel.webview.onDidReceiveMessage((message: WebviewToHostMessage) => {
         if (message.type === 'ready') {
@@ -172,7 +189,7 @@ export class ViewerProvider implements vscode.CustomEditorProvider<DatabaseDocum
             document,
             current,
             {
-              writeClipboard: (text) => vscode.env.clipboard.writeText(text),
+              ...clipboard,
               saveTile: (name, stored) => saveTile(document.uri, name, stored),
               exportRows: (source, name) => exportToFile(document, source, name),
               onMetadataEdit: (edit) =>
@@ -278,6 +295,14 @@ export class ViewerProvider implements vscode.CustomEditorProvider<DatabaseDocum
     } satisfies HostToWebviewMessage);
   }
 
+  /** Copies a reference to what was right-clicked, or else to what's in view (D-026). */
+  private copyReference(withText: boolean): void {
+    void this.active?.panel.webview.postMessage({
+      type: 'copyReference',
+      withText,
+    } satisfies HostToWebviewMessage);
+  }
+
   /** Copies the selected cells of the grid in view, as the grid's own Ctrl+C does. */
   private copySelection(markdown: boolean): void {
     void this.active?.panel.webview.postMessage({
@@ -307,4 +332,12 @@ export class ViewerProvider implements vscode.CustomEditorProvider<DatabaseDocum
       } satisfies HostToWebviewMessage);
     }
   }
+}
+
+/**
+ * How a copied reference names the file: relative to its workspace folder, so that an assistant
+ * working in the workspace can find it; a file outside any folder by its full path.
+ */
+function referencePath(uri: vscode.Uri): string {
+  return vscode.workspace.asRelativePath(uri, false);
 }

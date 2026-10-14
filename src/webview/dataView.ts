@@ -14,6 +14,7 @@ import { CellDetail, type CellPlace } from './detail/cellDetail';
 import { hexBytes } from './detail/format';
 import { STORAGE_CLASSES, cellText } from './grid/cells';
 import { DataGrid, type CellRange, type GridPosition } from './grid/dataGrid';
+import { gridLocation, sourceLocation, type RowSource } from './reference';
 import { newRun } from './runs';
 import { databaseErrorMessage, element, format } from './views';
 
@@ -88,6 +89,8 @@ export class DataView {
   private detailTimer = 0;
   private readonly requests = new Set<number>();
   private readonly copies = new Set<number>();
+  /** Copies after a reference, which VS Code's status bar confirms. */
+  private readonly referenceCopies = new Set<number>();
   private columns = 0;
   private estimated = false;
   private noteTimer = 0;
@@ -270,12 +273,17 @@ export class DataView {
         break;
       case 'copied':
         if (this.copies.delete(message.request)) {
-          this.showNote(this.copiedText(message.result));
+          const { result } = message;
+          // VS Code says a reference was copied; only a copy cut short needs saying here.
+          const quiet =
+            this.referenceCopies.delete(message.request) && !result.stopped && !result.cut;
+          this.showNote(quiet ? '' : this.copiedText(result));
         }
         break;
       case 'objectError': {
         const text = databaseErrorMessage(message.error, this.strings);
         if (message.request !== undefined && this.copies.delete(message.request)) {
+          this.referenceCopies.delete(message.request);
           this.showNote(format(this.strings.copyFailed, text));
           return;
         }
@@ -334,7 +342,7 @@ export class DataView {
           this.showSelection();
           this.updateDetail();
         },
-        onCopy: (range, toEnd, markdown) => this.copy(range, toEnd, markdown),
+        onCopy: (range, toEnd, markdown, reference) => this.copy(range, toEnd, markdown, reference),
         onEnter: () => this.setDetail(true, true),
         onSort: (column) => this.sortBy(column),
         onFilter: (column, text, now) => {
@@ -464,9 +472,41 @@ export class DataView {
     this.grid?.copySelection(markdown);
   }
 
-  private copy(range: CellRange, toEnd: boolean, markdown: boolean): void {
+  /**
+   * Copy Reference: where the selection is, and with `withText` its values, one quoted or a block
+   * as a Markdown table, read in full as a copy reads them (D-026).
+   */
+  copyReference(withText: boolean, source: RowSource): void {
+    const grid = this.grid;
+    if (!grid) {
+      this.send({ type: 'reference', location: sourceLocation(source, this.strings) });
+      return;
+    }
+    const { total } = grid.rowCount;
+    const columns = Array.from({ length: this.columns }, (_, c) => grid.columnName(c) ?? '');
+    const location = gridLocation(
+      {
+        source,
+        selection: grid.selection,
+        total: grid.copyable ? total : 0,
+        columns,
+        view: this.results ? PLAIN_VIEW : this.view,
+        rowid: grid.hasRowid ? (row) => grid.rowLabel(row) : undefined,
+      },
+      this.strings,
+    );
+    if (withText && grid.copyable) {
+      const { row1, col1, row2, col2 } = grid.selection;
+      grid.copySelection(row1 !== row2 || col1 !== col2, location);
+    } else {
+      this.send({ type: 'reference', location });
+    }
+  }
+
+  private copy(range: CellRange, toEnd: boolean, markdown: boolean, reference?: string): void {
     const request = nextRequest++;
     this.copies.add(request);
+    if (reference !== undefined) this.referenceCopies.add(request);
     clearTimeout(this.copyTimer);
     this.copyTimer = window.setTimeout(() => {
       clearTimeout(this.noteTimer);
@@ -485,6 +525,7 @@ export class DataView {
         lastColumn: range.col2,
         markdown,
       },
+      reference,
     });
   }
 
