@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Vector tiles are drawn layer by layer, with each layer's features counted by geometry type;
   layers can be shown or hidden. Raster tiles show as images. Every tile shows its size as
   stored and, for compressed tiles, uncompressed.
+- Point at a feature of a vector tile to see its attributes with their types, 64-bit integers
+  to the last digit; every feature under the pointer is listed, topmost first. A click keeps
+  them in view, <kbd>[</kbd> and <kbd>]</kbd> step through the tile's features, and
+  <kbd>Escape</kbd> lets go.
 
 ## [0.1.0] - 2026-10-14
 

@@ -6,6 +6,7 @@ import {
   decodeTile,
   featureGeometry,
   featureProperties,
+  valueText,
 } from '../../src/shared/mvt';
 
 // Just enough of a protobuf writer to build tiles by hand.
@@ -148,5 +149,21 @@ describe('decodeTile', () => {
     expect(() => featureGeometry(feature([9, 2]))).toThrow('ends early');
     expect(() => featureGeometry(feature([12, 2, 2]))).toThrow('Unknown geometry command 4');
     expect(featureGeometry(feature([9, 2, 2, 18, 2, 2, 4, 4]))).toEqual([[1, 1, 2, 2, 4, 4]]);
+  });
+});
+
+describe('valueText', () => {
+  it('writes 32-bit floats with as few digits as read back the same', () => {
+    expect(valueText({ type: 'float', value: Math.fround(3.66) })).toBe('3.66');
+    expect(valueText({ type: 'float', value: Math.fround(0.1) })).toBe('0.1');
+    expect(valueText({ type: 'float', value: Math.fround(16777217) })).toBe('16777216');
+    expect(valueText({ type: 'float', value: Number.NaN })).toBe('NaN');
+  });
+
+  it('writes other values as they are', () => {
+    expect(valueText({ type: 'double', value: 3.6600000858306885 })).toBe('3.6600000858306885');
+    expect(valueText({ type: 'uint', value: '18446744073709551615' })).toBe('18446744073709551615');
+    expect(valueText({ type: 'bool', value: false })).toBe('false');
+    expect(valueText({ type: 'string', value: '' })).toBe('');
   });
 });

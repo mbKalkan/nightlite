@@ -181,5 +181,11 @@ export function viewerStrings(l10n: Localizer): ViewerStrings {
     layerExtent: l10n.t('extent {0}'),
     tileLayersHeading: l10n.t('Layers'),
     tilesErrorTitle: l10n.t("The tiles couldn't be read"),
+    featuresHeading: l10n.t('Features'),
+    inspectHint: l10n.t(
+      'Point at a feature to see its attributes, and click to keep them. [ and ] step through the features.',
+    ),
+    featureId: l10n.t('id {0}'),
+    noAttributes: l10n.t('No attributes'),
   };
 }

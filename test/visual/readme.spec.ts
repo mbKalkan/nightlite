@@ -83,6 +83,19 @@ test('a vector tile in the tile browser', async ({ page }) => {
   await open(page, 'tiles');
   await expect(page.locator('.nl-tile-address')).toHaveText('14/9510/6142');
   await expect(page.locator('.nl-tile-layer-name')).toHaveCount(5);
+  // Point at a building on its own, near the middle, and keep its attributes in view.
+  const box = (await page.locator('.nl-tile-overlay').boundingBox())!;
+  const cards = page.locator('.nl-tile-feature .nl-tile-layer-name');
+  search: for (let dy = 0.4; dy < 0.7; dy += 0.02) {
+    for (let dx = 0.4; dx < 0.7; dx += 0.02) {
+      await page.mouse.move(box.x + dx * box.width, box.y + dy * box.height);
+      await page.evaluate(() => new Promise((done) => requestAnimationFrame(done)));
+      if ((await cards.allTextContents()).join() === 'buildings') break search;
+    }
+  }
+  await expect(cards).toHaveText(['buildings']);
+  await page.mouse.down();
+  await page.mouse.up();
   await settle(page);
   await page.screenshot({ path: `${OUT}/tiles-dark.png` });
 });

@@ -161,5 +161,9 @@
   "{0} of unknown type": "{0} bilinmeyen tipte",
   "extent {0}": "kapsam {0}",
   "Layers": "Katmanlar",
-  "The tiles couldn't be read": "Karolar okunamadı"
+  "The tiles couldn't be read": "Karolar okunamadı",
+  "Features": "Nesneler",
+  "Point at a feature to see its attributes, and click to keep them. [ and ] step through the features.": "Özniteliklerini görmek için bir nesnenin üzerine gelin, tutmak için tıklayın. [ ve ] nesneler arasında gezinir.",
+  "id {0}": "id {0}",
+  "No attributes": "Özniteliği yok"
 }

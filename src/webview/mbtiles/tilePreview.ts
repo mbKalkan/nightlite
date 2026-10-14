@@ -13,7 +13,7 @@ import { formatBytes, formatCount } from '../../shared/units';
 import { hexDump } from '../detail/format';
 import { icons } from '../icons';
 import { element, format } from '../views';
-import { drawVectorTile, layerColors } from './vectorDrawing';
+import { VectorView } from './vectorView';
 
 /** The buttons that move to another tile, with the keys that do the same. */
 const STEPS: {
@@ -60,16 +60,9 @@ export class TilePreview {
   private readonly facts: HTMLElement;
   private readonly body: HTMLElement;
   private key: TileKey | undefined;
-  private layers: TileLayer[] | undefined;
-  private canvas: HTMLCanvasElement | undefined;
-  private layerList: HTMLElement | undefined;
+  private vector: VectorView | undefined;
   private imageUrl: string | undefined;
   private loadingTimer = 0;
-  private readonly resize = new ResizeObserver(() => this.draw());
-  private readonly theme = new MutationObserver(() => {
-    this.renderLayers();
-    this.draw();
-  });
 
   constructor(
     private readonly strings: ViewerStrings,
@@ -103,7 +96,6 @@ export class TilePreview {
     this.body = element('div', 'nl-tile-body');
     this.element.append(head, this.facts, this.body);
     this.element.addEventListener('keydown', (event) => this.onKeyDown(event));
-    this.theme.observe(document.body, { attributes: true, attributeFilter: ['class'] });
   }
 
   /** Shows a tile's place at once and its content when it comes, after a moment's wait. */
@@ -174,7 +166,6 @@ export class TilePreview {
   dispose(): void {
     clearTimeout(this.loadingTimer);
     this.clear();
-    this.theme.disconnect();
   }
 
   private setKey(key: TileKey): void {
@@ -191,10 +182,8 @@ export class TilePreview {
   private clear(): void {
     if (this.imageUrl) URL.revokeObjectURL(this.imageUrl);
     this.imageUrl = undefined;
-    this.resize.disconnect();
-    this.layers = undefined;
-    this.canvas = undefined;
-    this.layerList = undefined;
+    this.vector?.dispose();
+    this.vector = undefined;
     this.body.replaceChildren();
   }
 
@@ -240,7 +229,6 @@ export class TilePreview {
       }
       return;
     }
-    this.layers = layers;
     const features = layers.reduce((sum, layer) => sum + layer.features.length, 0);
     this.facts.textContent = [
       strings.vectorTile,
@@ -252,75 +240,10 @@ export class TilePreview {
       this.message(strings.emptyTile);
       return;
     }
-    const stage = element('div', 'nl-tile-stage');
-    const frame = element('div', 'nl-tile-frame nl-tile-canvas');
-    this.canvas = document.createElement('canvas');
-    this.canvas.setAttribute('aria-hidden', 'true');
-    frame.append(this.canvas);
-    const side = element('section', 'nl-tile-layers');
-    side.append(element('h3', 'nl-heading', strings.tileLayersHeading));
-    this.layerList = element('ul', 'nl-tile-layer-list');
-    side.append(this.layerList);
-    stage.append(frame, side);
-    this.body.append(stage);
-    this.renderLayers();
-    this.resize.observe(frame);
-  }
-
-  /** Each layer with its color, what it holds, and a box to show or hide it. */
-  private renderLayers(): void {
-    const { layers, layerList, strings, locale } = this;
-    if (!layers || !layerList) return;
-    const colors = layerColors(layers.length);
-    layerList.replaceChildren(
-      ...layers.map((layer, index) => {
-        const item = element('li', 'nl-tile-layer');
-        const label = element('label', 'nl-tile-layer-label');
-        const box = document.createElement('input');
-        box.type = 'checkbox';
-        box.className = 'nl-checkbox';
-        box.checked = !this.hidden.has(layer.name);
-        box.addEventListener('change', () => {
-          if (box.checked) this.hidden.delete(layer.name);
-          else this.hidden.add(layer.name);
-          this.events.onLayers(this.hidden);
-          this.draw();
-        });
-        const swatch = element('span', 'nl-swatch');
-        swatch.style.background = colors[index];
-        label.append(box, swatch, element('span', 'nl-tile-layer-name', layer.name));
-        const types = [0, 0, 0, 0];
-        for (const feature of layer.features) types[feature.type]++;
-        const facts = [
-          types[1] && count(types[1], strings.onePoint, strings.pointCount, locale),
-          types[2] && count(types[2], strings.oneLine, strings.lineCount, locale),
-          types[3] && count(types[3], strings.onePolygon, strings.polygonCount, locale),
-          types[0] && format(strings.otherCount, formatCount(types[0], locale)),
-          layer.extent !== 4096 && format(strings.layerExtent, formatCount(layer.extent, locale)),
-        ].filter((fact): fact is string => typeof fact === 'string');
-        if (layer.features.length === 0) facts.push(count(0, '', strings.layerFeatures, locale));
-        item.append(label, element('span', 'nl-tile-layer-facts', facts.join(' · ')));
-        return item;
-      }),
+    this.vector = new VectorView(layers, strings, locale, this.hidden, (hidden) =>
+      this.events.onLayers(hidden),
     );
-  }
-
-  private draw(): void {
-    const { canvas, layers } = this;
-    if (!canvas || !layers) return;
-    const frame = canvas.parentElement as HTMLElement;
-    const size = Math.floor(frame.clientWidth);
-    if (size <= 0) return;
-    const hidden = new Set<number>();
-    layers.forEach((layer, index) => {
-      if (this.hidden.has(layer.name)) hidden.add(index);
-    });
-    const style = getComputedStyle(document.documentElement);
-    drawVectorTile(canvas, size, layers, hidden, {
-      colors: layerColors(layers.length),
-      frame: style.getPropertyValue('--vscode-descriptionForeground').trim() || '#888',
-      halo: style.getPropertyValue('--vscode-editor-background').trim() || '#000',
-    });
+    this.body.append(this.vector.element);
   }
 
   private showBytes(text: string, data: Uint8Array, detail?: string): void {
@@ -354,6 +277,10 @@ export class TilePreview {
 
   private onKeyDown(event: KeyboardEvent): void {
     if (event.target !== this.element || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (this.vector?.onKey(event)) {
+      event.preventDefault();
+      return;
+    }
     const step = KEY_STEPS[event.key];
     if (!step) return;
     event.preventDefault();

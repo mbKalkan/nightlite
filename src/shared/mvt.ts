@@ -294,3 +294,14 @@ export function featureGeometry(feature: TileFeature): number[][] {
   }
   return parts;
 }
+
+/** A value as written; a 32-bit float with as few digits as read back to the same float. */
+export function valueText(value: TileValue): string {
+  if (value.type === 'float' && Number.isFinite(value.value)) {
+    for (let digits = 1; digits < 9; digits++) {
+      const short = Number(value.value.toPrecision(digits));
+      if (Math.fround(short) === value.value) return String(short);
+    }
+  }
+  return String(value.value);
+}
