@@ -364,6 +364,8 @@ export interface ViewerStrings {
   viewImage: string;
   viewText: string;
   viewHex: string;
+  viewGeometry: string;
+  srsFact: string;
   /** The metadata editor: its note, its rows and what it says about values. */
   metadataHint: string;
   metadataNoTable: string;

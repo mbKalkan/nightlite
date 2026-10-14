@@ -248,5 +248,7 @@
   "Show in Folder": "Klasörde Göster",
   "Exported {0} rows to {1}.": "{0} satır {1} dosyasına aktarıldı.",
   "Export Rows…": "Satırları Dışa Aktar…",
-  "Export the rows as shown to a CSV or JSON file": "Satırları gösterildiği gibi bir CSV ya da JSON dosyasına aktar"
+  "Export the rows as shown to a CSV or JSON file": "Satırları gösterildiği gibi bir CSV ya da JSON dosyasına aktar",
+  "Geometry": "Geometri",
+  "SRS {0}": "SRS {0}"
 }

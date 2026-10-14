@@ -2123,3 +2123,14 @@ textarea.nl-metadata-value {
   min-height: 0;
   border-top: 1px solid var(--nl-border);
 }
+
+/* A GeoPackage geometry, drawn. */
+.nl-detail-geometry {
+  display: inline-block;
+  border: 1px solid var(--nl-border);
+  background: var(--vscode-editor-background);
+}
+
+.nl-detail-geometry canvas {
+  display: block;
+}

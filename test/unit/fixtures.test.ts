@@ -80,10 +80,14 @@ describe('test fixtures', () => {
     db.close();
   });
 
-  it('have a GeoPackage with a feature table of points', () => {
+  it('have a GeoPackage with features, tiles and attributes', () => {
     const db = open('sample.gpkg');
     expect(db.prepare('SELECT table_name, data_type FROM gpkg_contents').all()).toEqual([
       { table_name: 'cities', data_type: 'features' },
+      { table_name: 'regions', data_type: 'features' },
+      { table_name: 'routes', data_type: 'features' },
+      { table_name: 'basemap', data_type: 'tiles' },
+      { table_name: 'notes', data_type: 'attributes' },
     ]);
     const geom = db.prepare('SELECT geom FROM cities LIMIT 1').get()?.geom as Uint8Array;
     expect(Buffer.from(geom.subarray(0, 2)).toString('ascii')).toBe('GP');

@@ -21,11 +21,15 @@ import {
   realText,
   tsvField,
 } from '../../shared/values';
+import { readGeoPackageHeader } from '../../shared/geometry';
 
 /** Text longer than this is cut for the grid; the cell says how long it really is. */
 export const TEXT_LIMIT = 1000;
-/** BLOBs travel as their size and first bytes, enough to tell a PNG from a gzip. */
-export const BLOB_HEAD = 48;
+/**
+ * BLOBs travel as their size and first bytes: enough to tell a PNG from a gzip, and a
+ * geometry's type past the largest GeoPackage envelope (8 + 64 bytes).
+ */
+export const BLOB_HEAD = 80;
 /** How far from a row already read the next read may start before positions are estimated. */
 const NEAR = 2000;
 
@@ -249,9 +253,15 @@ export class TableReader {
       length,
     };
     if (kind === 'blob' && row[1]) {
-      // Images and text are read whole, to show as what they are; anything else stays a hex dump.
+      // Images, geometries and text are read whole, to show as what they are; anything else stays
+      // a hex dump.
       const head = row[1] as Uint8Array;
-      const limit = imageKind(head) ? IMAGE_PREVIEW : looksLikeText(head) ? DETAIL_TEXT : 0;
+      const limit =
+        imageKind(head) || readGeoPackageHeader(head)
+          ? IMAGE_PREVIEW
+          : looksLikeText(head)
+            ? DETAIL_TEXT
+            : 0;
       if (length <= limit) {
         const whole = length <= DETAIL_BYTES ? head : (read(limit)?.[1] as Uint8Array | undefined);
         if (whole) cell.bytes = new Uint8Array(whole);

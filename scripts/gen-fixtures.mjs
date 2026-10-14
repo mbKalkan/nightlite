@@ -646,7 +646,8 @@ create(join(FIXTURES, 'showcase.mbtiles'), (db) => {
   }
 });
 
-// GeoPackage 1.3 with one feature table of points (GeoPackage binary geometry: header + WKB).
+// GeoPackage 1.3: features (points, polygons, a line), tiles and attributes. Geometries are
+// GeoPackage binary: a header, with an envelope for all but points, then WKB.
 create(
   join(FIXTURES, 'sample.gpkg'),
   (db) => {
@@ -667,7 +668,28 @@ create(
       srs_id INTEGER NOT NULL, z TINYINT NOT NULL, m TINYINT NOT NULL,
       CONSTRAINT pk_geom_cols PRIMARY KEY (table_name, column_name)
     );
+    CREATE TABLE gpkg_tile_matrix_set (
+      table_name TEXT NOT NULL PRIMARY KEY, srs_id INTEGER NOT NULL,
+      min_x DOUBLE NOT NULL, min_y DOUBLE NOT NULL, max_x DOUBLE NOT NULL, max_y DOUBLE NOT NULL
+    );
+    CREATE TABLE gpkg_tile_matrix (
+      table_name TEXT NOT NULL, zoom_level INTEGER NOT NULL, matrix_width INTEGER NOT NULL,
+      matrix_height INTEGER NOT NULL, tile_width INTEGER NOT NULL, tile_height INTEGER NOT NULL,
+      pixel_x_size DOUBLE NOT NULL, pixel_y_size DOUBLE NOT NULL,
+      CONSTRAINT pk_ttm PRIMARY KEY (table_name, zoom_level)
+    );
+    CREATE TABLE gpkg_extensions (
+      table_name TEXT, column_name TEXT, extension_name TEXT NOT NULL, definition TEXT NOT NULL,
+      scope TEXT NOT NULL, CONSTRAINT ge_tce UNIQUE (table_name, column_name, extension_name)
+    );
     CREATE TABLE cities (fid INTEGER PRIMARY KEY AUTOINCREMENT, geom POINT, name TEXT, population INTEGER);
+    CREATE TABLE regions (fid INTEGER PRIMARY KEY AUTOINCREMENT, geom MULTIPOLYGON, name TEXT);
+    CREATE TABLE routes (fid INTEGER PRIMARY KEY AUTOINCREMENT, geom LINESTRING, name TEXT);
+    CREATE TABLE basemap (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, zoom_level INTEGER NOT NULL, tile_column INTEGER NOT NULL,
+      tile_row INTEGER NOT NULL, tile_data BLOB NOT NULL, UNIQUE (zoom_level, tile_column, tile_row)
+    );
+    CREATE TABLE notes (id INTEGER PRIMARY KEY AUTOINCREMENT, topic TEXT, body TEXT);
   `);
     const srs = db.prepare('INSERT INTO gpkg_spatial_ref_sys VALUES (?, ?, ?, ?, ?, ?)');
     srs.run('Undefined cartesian SRS', -1, 'NONE', -1, 'undefined', null);
@@ -680,12 +702,108 @@ create(
       'GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]]',
       null,
     );
+    srs.run(
+      'WGS 84 / Pseudo-Mercator',
+      3857,
+      'EPSG',
+      3857,
+      'PROJCS["WGS 84 / Pseudo-Mercator",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]],PROJECTION["Mercator_1SP"],PARAMETER["central_meridian",0],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1]]',
+      null,
+    );
+    const contents = db.prepare('INSERT INTO gpkg_contents VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    const changed = '2026-01-01T00:00:00.000Z';
+    contents.run('cities', 'features', 'Cities', 'Sample cities', changed, 26, 36, 45, 42, 4326);
+    contents.run(
+      'regions',
+      'features',
+      'Regions',
+      'Two regions, one of them with a lake',
+      changed,
+      26,
+      36,
+      33,
+      42,
+      4326,
+    );
+    contents.run(
+      'routes',
+      'features',
+      'Routes',
+      '',
+      changed,
+      27.1428,
+      38.4237,
+      32.8597,
+      41.0082,
+      4326,
+    );
+    const half = 20037508.342789244;
+    contents.run(
+      'basemap',
+      'tiles',
+      'Base map',
+      'A two-level tile pyramid',
+      changed,
+      -half,
+      -half,
+      half,
+      half,
+      3857,
+    );
+    contents.run(
+      'notes',
+      'attributes',
+      'Notes',
+      'Rows without a geometry',
+      changed,
+      null,
+      null,
+      null,
+      null,
+      null,
+    );
+    const columns = db.prepare('INSERT INTO gpkg_geometry_columns VALUES (?, ?, ?, ?, ?, ?)');
+    columns.run('cities', 'geom', 'POINT', 4326, 0, 0);
+    columns.run('regions', 'geom', 'MULTIPOLYGON', 4326, 0, 0);
+    columns.run('routes', 'geom', 'LINESTRING', 4326, 0, 0);
     db.prepare(
-      "INSERT INTO gpkg_contents VALUES ('cities', 'features', 'Cities', 'Sample cities', '2026-01-01T00:00:00.000Z', 26.0, 36.0, 45.0, 42.0, 4326)",
+      "INSERT INTO gpkg_extensions VALUES ('regions', 'geom', 'gpkg_rtree_index', 'http://www.geopackage.org/spec120/#extension_rtree', 'write-only')",
     ).run();
-    db.prepare(
-      "INSERT INTO gpkg_geometry_columns VALUES ('cities', 'geom', 'POINT', 4326, 0, 0)",
-    ).run();
+
+    db.prepare('INSERT INTO gpkg_tile_matrix_set VALUES (?, ?, ?, ?, ?, ?)').run(
+      'basemap',
+      3857,
+      -half,
+      -half,
+      half,
+      half,
+    );
+    const matrix = db.prepare('INSERT INTO gpkg_tile_matrix VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    const tile = db.prepare(
+      'INSERT INTO basemap (zoom_level, tile_column, tile_row, tile_data) VALUES (?, ?, ?, ?)',
+    );
+    for (const zoom of [0, 1]) {
+      const n = 2 ** zoom;
+      const pixel = (2 * half) / (256 * n);
+      matrix.run('basemap', zoom, n, n, 256, 256, pixel, pixel);
+      for (let x = 0; x < n; x++) {
+        for (let y = 0; y < n; y++) {
+          tile.run(
+            zoom,
+            x,
+            y,
+            png(16, 16, (px, py) => [
+              40 + 60 * x,
+              80 + 60 * y,
+              160 + 40 * zoom + ((px + py) % 2) * 20,
+            ]),
+          );
+        }
+      }
+    }
+    const note = db.prepare('INSERT INTO notes (topic, body) VALUES (?, ?)');
+    note.run('Sources', 'Coordinates are rounded and for testing only.');
+    note.run('Tiles', 'The base map is a plain color per tile.');
 
     const point = (x, y) => {
       const blob = Buffer.alloc(8 + 21);
@@ -699,6 +817,95 @@ create(
       blob.writeDoubleLE(y, 21);
       return blob;
     };
+    /** A geometry with an XY envelope; `wkb` is the WKB after the header. */
+    const withEnvelope = (wkb, [minX, minY, maxX, maxY]) => {
+      const header = Buffer.alloc(8 + 32);
+      header.write('GP', 0, 'ascii');
+      header[3] = 0b00000011; // XY envelope, little-endian
+      header.writeInt32LE(4326, 4);
+      [minX, maxX, minY, maxY].forEach((v, i) => header.writeDoubleLE(v, 8 + i * 8));
+      return Buffer.concat([header, wkb]);
+    };
+    const wkbHead = (type) => {
+      const b = Buffer.alloc(5);
+      b[0] = 1;
+      b.writeUInt32LE(type, 1);
+      return b;
+    };
+    const count = (n) => {
+      const b = Buffer.alloc(4);
+      b.writeUInt32LE(n);
+      return b;
+    };
+    const coordinates = (points) => {
+      const b = Buffer.alloc(points.length * 16);
+      points.forEach(([x, y], i) => {
+        b.writeDoubleLE(x, i * 16);
+        b.writeDoubleLE(y, i * 16 + 8);
+      });
+      return b;
+    };
+    const polygon = (rings) =>
+      Buffer.concat([
+        wkbHead(3),
+        count(rings.length),
+        ...rings.flatMap((r) => [count(r.length), coordinates(r)]),
+      ]);
+    const multipolygon = (polygons) =>
+      Buffer.concat([wkbHead(6), count(polygons.length), ...polygons.map(polygon)]);
+    const bounds = (points) => [
+      Math.min(...points.map((p) => p[0])),
+      Math.min(...points.map((p) => p[1])),
+      Math.max(...points.map((p) => p[0])),
+      Math.max(...points.map((p) => p[1])),
+    ];
+    const marmara = [
+      [26, 40],
+      [29.9, 39.9],
+      [30.4, 41.2],
+      [28, 42],
+      [26, 41.6],
+      [26, 40],
+    ];
+    const lake = [
+      [29.2, 40.6],
+      [29.6, 40.6],
+      [29.6, 40.9],
+      [29.2, 40.9],
+      [29.2, 40.6],
+    ];
+    const aegean = [
+      [26.2, 37],
+      [29.5, 37.2],
+      [30, 38.8],
+      [26.8, 39.5],
+      [26.2, 37],
+    ];
+    const island = [
+      [26.1, 36.2],
+      [27.2, 36.3],
+      [27, 36.8],
+      [26.1, 36.2],
+    ];
+    const region = db.prepare('INSERT INTO regions (geom, name) VALUES (?, ?)');
+    region.run(withEnvelope(multipolygon([[marmara, lake]]), bounds(marmara)), 'Marmara');
+    region.run(
+      withEnvelope(multipolygon([[aegean], [island]]), bounds([...aegean, ...island])),
+      'Aegean',
+    );
+    const route = [
+      [28.9784, 41.0082],
+      [32.8597, 39.9334],
+      [27.1428, 38.4237],
+    ];
+    db.prepare('INSERT INTO routes (geom, name) VALUES (?, ?)').run(
+      withEnvelope(
+        Buffer.concat([wkbHead(2), count(route.length), coordinates(route)]),
+        bounds(route),
+      ),
+      'İstanbul–Ankara–İzmir',
+    );
+
     const city = db.prepare('INSERT INTO cities (geom, name, population) VALUES (?, ?, ?)');
     city.run(point(28.9784, 41.0082), 'İstanbul', 15655924);
     city.run(point(32.8597, 39.9334), 'Ankara', 5803482);
