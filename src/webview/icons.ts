@@ -31,6 +31,7 @@ export const icons = {
   arrowUp: svg('<path d="M8 13V3M4 7l4-4 4 4"/>'),
   arrowDown: svg('<path d="M8 3v10M4 9l4 4 4-4"/>'),
   zoomIn: svg('<circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14M5 7h4M7 5v4"/>'),
+  metadata: svg('<path d="M3 4h2M7 4h6M3 8h2M7 8h6M3 12h2M7 12h4"/>'),
   save: svg('<path d="M8 2.5v8M4.5 7 8 10.5 11.5 7M3 13.5h10"/>'),
   zoomOut: svg('<circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14M5 7h4"/>'),
 } as const;

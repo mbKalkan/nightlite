@@ -1,6 +1,7 @@
 // Messages between the extension host and the worker thread that owns a database connection.
 
 import type { CopyRange } from '../../shared/protocol';
+import type { MetadataChange } from './metadataWrite';
 
 export type WorkerCall =
   | { type: 'open'; target: string }
@@ -18,7 +19,10 @@ export type WorkerCall =
   | { type: 'tilePage'; zoom: number; start: number; count: number; total: number }
   | { type: 'locateTile'; zoom: number; column: number; row: number; total: number }
   | { type: 'tile'; zoom: number; column: number; row: number }
-  | { type: 'storedTile'; zoom: number; column: number; row: number };
+  | { type: 'storedTile'; zoom: number; column: number; row: number }
+  | { type: 'metadataRows' }
+  /** Writes metadata changes into the file at `path`, on a connection of its own. */
+  | { type: 'writeMetadata'; path: string; changes: MetadataChange[] };
 
 export type WorkerRequest = WorkerCall & { id: number };
 

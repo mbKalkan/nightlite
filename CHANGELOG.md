@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Metadata** for MBTiles, in the sidebar under the tile browser: the tileset's metadata as a
+  form. Change, add or remove keys; values are checked against the MBTiles 1.3 spec as you type,
+  and minzoom and maxzoom against the tiles, without stopping a save. Changes are marked and the
+  editor tab shows them unsaved; **Save** (<kbd>Ctrl</kbd>+<kbd>S</kbd>) writes them into the
+  file in one transaction, **Undo** takes back a field's typing at once, **Revert** drops them,
+  and VS Code keeps them if it closes before you save. If another program changed the file
+  since, Nightlite asks first; if the file is locked or read-only, it says so and keeps your
+  changes. This is the only time Nightlite writes to a file.
 - A tile browser for MBTiles, in the sidebar under the overview. Pick a zoom level, type a
   tile's z/x/y, paste a tile URL, or pick a tile from the zoom level's list, which scrolls
   through millions of tiles. The arrow keys move to the neighboring tiles and <kbd>+</kbd> and

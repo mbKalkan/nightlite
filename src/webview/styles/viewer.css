@@ -1755,3 +1755,113 @@ body.vscode-high-contrast .nl-swatch {
   line-height: 1.5;
   user-select: text;
 }
+
+/* Metadata editor: one row per key, as VS Code's Settings editor lays out its own. */
+
+.nl-metadata {
+  max-width: 920px;
+}
+
+.nl-metadata-note {
+  margin: -8px 0 18px;
+  line-height: 1.5;
+}
+
+.nl-metadata-list {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.nl-metadata-row {
+  display: grid;
+  grid-template-columns: minmax(96px, 160px) minmax(0, 1fr) 24px;
+  gap: 4px 12px;
+  align-items: start;
+  padding: 6px 8px 6px 10px;
+  border-left: 2px solid transparent;
+}
+
+/* Changed and not saved yet: the bar VS Code's settings show beside modified ones. */
+.nl-metadata-row.nl-changed {
+  border-left-color: var(--vscode-settings-modifiedItemIndicator, var(--vscode-focusBorder));
+}
+
+.nl-metadata-key {
+  padding-top: 4px;
+  overflow-wrap: anywhere;
+  font-family: var(--vscode-editor-font-family, monospace);
+}
+
+.nl-metadata-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.nl-metadata-value {
+  width: 100%;
+  font-family: var(--vscode-editor-font-family, monospace);
+}
+
+textarea.nl-metadata-value {
+  min-height: 26px;
+  padding: 4px 6px;
+  resize: vertical;
+  line-height: 1.4;
+}
+
+.nl-metadata-value[readonly] {
+  opacity: 0.7;
+}
+
+.nl-metadata-issues:empty {
+  display: none;
+}
+
+.nl-metadata-issue,
+.nl-metadata-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.nl-metadata-issue {
+  color: var(--vscode-errorForeground);
+}
+
+.nl-metadata-hint {
+  color: var(--vscode-editorWarning-foreground, var(--vscode-descriptionForeground));
+}
+
+.nl-metadata-remove {
+  margin-top: 1px;
+}
+
+.nl-metadata-add {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 14px 0 0 12px;
+}
+
+.nl-metadata-add[hidden] {
+  display: none;
+}
+
+.nl-metadata-new {
+  width: 220px;
+  font-family: var(--vscode-editor-font-family, monospace);
+}
+
+/* A secondary button, as VS Code draws its own. */
+.nl-button-secondary {
+  margin-top: 0;
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+}
+
+.nl-button-secondary:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
+}

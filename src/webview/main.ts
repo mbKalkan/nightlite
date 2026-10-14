@@ -100,6 +100,10 @@ window.addEventListener('message', (event: MessageEvent<HostToWebviewMessage>) =
     case 'tilesError':
       shell.tileMessage(message);
       break;
+    case 'metadataState':
+    case 'metadataError':
+      shell.metadataMessage(message);
+      break;
   }
 });
 

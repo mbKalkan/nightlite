@@ -1,7 +1,7 @@
 import type { ObjectType, SchemaObject, ViewerStrings } from '../shared/protocol';
 import { icons } from './icons';
 
-/** `overview`, `tiles`, `group:<type>` or `<type>:<name>`. */
+/** `overview`, `tiles`, `metadata`, `group:<type>` or `<type>:<name>`. */
 export type EntryKey = string;
 
 interface Entry {
@@ -39,6 +39,12 @@ function entriesFor(
   ];
   if (tiles) {
     entries.push({ key: 'tiles', label: strings.tileBrowser, level: 1, icon: icons.tiles });
+    entries.push({
+      key: 'metadata',
+      label: strings.metadataHeading,
+      level: 1,
+      icon: icons.metadata,
+    });
   }
   for (const group of GROUPS) {
     // SQLite's own tables and the ones behind virtual tables come last, dimmed.

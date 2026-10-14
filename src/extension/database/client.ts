@@ -14,6 +14,8 @@ import type {
 } from '../../shared/protocol';
 import type { TileKey } from '../../shared/tiles';
 import type { WorkerCall, WorkerFailure, WorkerResponse } from './messages';
+import type { MetadataRow } from './mbtiles';
+import type { MetadataChange } from './metadataWrite';
 import type { CopiedText } from './rows';
 
 /** An error from the database worker, with SQLite's result code when SQLite raised it. */
@@ -108,6 +110,17 @@ export class DatabaseClient {
 
   storedTile(key: TileKey): Promise<Uint8Array | null> {
     return this.call({ type: 'storedTile', ...key }) as Promise<Uint8Array | null>;
+  }
+
+  metadataRows(): Promise<{ kind: 'table' | 'view' | null; rows: MetadataRow[] }> {
+    return this.call({ type: 'metadataRows' }) as Promise<{
+      kind: 'table' | 'view' | null;
+      rows: MetadataRow[];
+    }>;
+  }
+
+  writeMetadata(path: string, changes: MetadataChange[]): Promise<void> {
+    return this.call({ type: 'writeMetadata', path, changes }) as Promise<void>;
   }
 
   dispose(): void {

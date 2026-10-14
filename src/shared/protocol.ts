@@ -316,6 +316,23 @@ export interface ViewerStrings {
   featureId: string;
   noAttributes: string;
   saveTile: string;
+  /** The metadata editor: its note, its rows and what it says about values. */
+  metadataHint: string;
+  metadataNoTable: string;
+  metadataIsView: string;
+  newKey: string;
+  addKey: string;
+  removeKey: string;
+  changedKey: string;
+  keyCopies: string;
+  valueTooLong: string;
+  issueFormat: string;
+  issueBounds: string;
+  issueCenter: string;
+  issueZoom: string;
+  issueType: string;
+  issueJson: string;
+  zoomOrder: string;
 }
 
 export interface LoadMessage {
@@ -546,6 +563,38 @@ export interface TilesErrorMessage {
   detail: string;
 }
 
+/** A metadata key as the editor shows it: its value with the changes not saved yet. */
+export interface MetadataEntry {
+  name: string;
+  value: string;
+  /** Changed or added since the file was last saved. */
+  changed: boolean;
+  /** Not in the file yet. */
+  added: boolean;
+  /** How many times the file has the key; saving a change keeps one. */
+  copies: number;
+  /** The value's full length when it's too long to edit here, and shown cut. */
+  cutFrom?: number;
+}
+
+/** The metadata as it would be saved, and whether it can be edited at all. */
+export interface MetadataState {
+  /** Why the metadata can't be edited: the file has no metadata table, or it's a view. */
+  readOnly?: 'noTable' | 'view';
+  entries: MetadataEntry[];
+}
+
+export interface MetadataStateMessage {
+  type: 'metadataState';
+  state: MetadataState;
+}
+
+export interface MetadataErrorMessage {
+  type: 'metadataError';
+  error: DatabaseError;
+  detail: string;
+}
+
 /** The selection is on the clipboard, answering `copy`. */
 export interface CopiedMessage {
   type: 'copied';
@@ -578,7 +627,9 @@ export type HostToWebviewMessage =
   | TilePageMessage
   | TilePositionMessage
   | TileContentMessage
-  | TilesErrorMessage;
+  | TilesErrorMessage
+  | MetadataStateMessage
+  | MetadataErrorMessage;
 
 export type WebviewToHostMessage =
   | { type: 'ready' }
@@ -604,6 +655,13 @@ export type WebviewToHostMessage =
   | { type: 'locateTile'; request: number; key: TileKey; total: number }
   /** Asks for a tile's content. */
   | { type: 'tile'; request: number; key: TileKey }
+  /** Asks for the metadata as the editor shows it; changes to it follow by themselves. */
+  | { type: 'metadata' }
+  /**
+   * Sets a metadata key to a value, or removes it with null, until the file is saved. `amend`
+   * folds a keystroke into the edit being typed into that key, so it undoes as one.
+   */
+  | { type: 'editMetadata'; name: string; value: string | null; amend?: boolean }
   /** Saves a tile as stored to a file the user picks; `name` is the file name, less its extension. */
   | { type: 'saveTile'; request: number; key: TileKey; name: string }
   /** Asks for one cell's value, by its row's rowid when known, else by position. */

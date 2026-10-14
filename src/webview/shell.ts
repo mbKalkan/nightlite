@@ -12,6 +12,7 @@ import { DatabaseOverview, listedTables, type TablesState } from './databaseOver
 import type { GridPosition } from './grid/dataGrid';
 import { icons } from './icons';
 import { MbtilesView, countsComplete, type TilesState } from './mbtiles/summary';
+import { MetadataEditor } from './mbtiles/metadataEditor';
 import { TileBrowser, type TileMessage, type TileView } from './mbtiles/tileBrowser';
 import { detailsSections } from './schemaDetails';
 import { ObjectTree, objectKey, type EntryKey } from './objectTree';
@@ -68,6 +69,7 @@ export class Shell {
   private tiles: TilesState | undefined;
   private summary: MbtilesView | undefined;
   private browser: TileBrowser | undefined;
+  private metadataEditor: MetadataEditor | undefined;
   private readonly tileView: TileView;
   /** A database's tables as counted for its overview, kept while other pages are shown. */
   private tables: TablesState | undefined;
@@ -185,6 +187,7 @@ export class Shell {
     this.summary = undefined;
     this.browser?.dispose();
     this.browser = undefined;
+    this.metadataEditor = undefined;
     this.overview = undefined;
     // A file that can't be shown starts afresh once it can be again.
     this.file = undefined;
@@ -267,6 +270,15 @@ export class Shell {
     }
     this.summary?.renderZooms();
     this.browser?.update();
+    this.metadataEditor?.refreshIssues();
+  }
+
+  /** The metadata as edited, for the metadata page. */
+  metadataMessage(
+    message: Extract<HostToWebviewMessage, { type: 'metadataState' | 'metadataError' }>,
+  ): void {
+    if (message.type === 'metadataState') this.metadataEditor?.receive(message.state);
+    else this.metadataEditor?.fail(message.error, message.detail);
   }
 
   /** The host's answers to the tile browser. */
@@ -289,6 +301,7 @@ export class Shell {
     this.summary = undefined;
     this.browser?.dispose();
     this.browser = undefined;
+    this.metadataEditor = undefined;
     this.overview = undefined;
     const { info, locale, strings } = this.file;
     const object = this.objects.get(key);
@@ -334,7 +347,13 @@ export class Shell {
     }
     if (info.format === 'mbtiles' && this.tree && !this.schemaError) {
       this.tiles ??= { counts: new Map(), counting: false, failed: false };
-      if (key === 'tiles') {
+      if (key === 'metadata') {
+        this.metadataEditor = new MetadataEditor(strings, locale, this.tiles, (message) =>
+          this.events.send(message),
+        );
+        this.content.replaceChildren(this.metadataEditor.element);
+        this.events.send({ type: 'metadata' });
+      } else if (key === 'tiles') {
         this.browser = new TileBrowser(locale, strings, this.tiles, this.tileView, {
           send: (message) => this.events.send(message),
           onView: (view) => this.events.onTileView(view),

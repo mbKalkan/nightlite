@@ -3,7 +3,8 @@
 import { DatabaseSync } from 'node:sqlite';
 import { parentPort } from 'node:worker_threads';
 import { readDetails } from './details';
-import { readMbtiles, zoomCount, zoomRange } from './mbtiles';
+import { readMbtiles, readMetadataRows, zoomCount, zoomRange } from './mbtiles';
+import { writeMetadata } from './metadataWrite';
 import type { WorkerCall, WorkerRequest, WorkerResponse } from './messages';
 import { TableReader } from './rows';
 import { readSchema } from './schema';
@@ -53,6 +54,11 @@ function handle(call: WorkerCall): unknown {
       return lister(call.zoom).locate(call.column, call.row, call.total);
     case 'tile':
       return readTile(connection(), call.zoom, call.column, call.row);
+    case 'metadataRows':
+      return readMetadataRows(connection());
+    case 'writeMetadata':
+      writeMetadata(call.path, call.changes);
+      return null;
     case 'storedTile':
       return readStoredTile(connection(), call.zoom, call.column, call.row);
   }

@@ -10,7 +10,7 @@
 **Browse SQLite databases, MBTiles and GeoPackages in VS Code, even when they're tens of
 gigabytes.**
 
-Nightlite is a fast, dark-first, read-only viewer for SQLite files: app databases (`.sqlite`,
+Nightlite is a fast, dark-first viewer for SQLite files: app databases (`.sqlite`,
 `.sqlite3`, `.db`, `.db3`), MBTiles tilesets (`.mbtiles`) and GeoPackages (`.gpkg`). It reads only
 the rows on screen, so a table of ten million rows scrolls as smoothly as one of ten, and a 24 GB
 tileset opens at once.
@@ -28,7 +28,8 @@ tileset opens at once.
   keeps its decimal point, `NULL` stands apart from text, and BLOBs say what they hold.
 - **Dark-first.** Follows your VS Code theme, including high contrast.
 - **Read-only and private.** Databases are opened read-only and nothing is written next to them,
-  not even a `-wal` or `-shm` file. No telemetry, no network access.
+  not even a `-wal` or `-shm` file. The one exception is an MBTiles tileset's metadata, written
+  only when you save your changes to it. No telemetry, no network access.
 
 ## Features
 
@@ -73,6 +74,9 @@ tileset opens at once.
 - Point at a feature to see its attributes with their types, 64-bit integers to the last digit;
   click to keep them in view, or step through the features with <kbd>[</kbd> and <kbd>]</kbd>
 - Raster tiles (PNG, JPEG, WebP) shown as images, and every tile's size, stored and uncompressed
+- **Metadata** as a form: change, add or remove keys, checked against the MBTiles 1.3 spec as you
+  type, and zoom levels against the tiles. Changes are marked until you save (<kbd>Ctrl</kbd>+<kbd>S</kbd>),
+  <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes them, and nothing is written before you save
 - **Save Tile…** writes the tile shown to a file you pick: images as they are, vector tiles as
   plain `.pbf`, or gzip-compressed when the name ends in `.gz`
 - Arrow keys move to the neighboring tiles, <kbd>+</kbd> and <kbd>−</kbd> between zoom levels;
@@ -117,8 +121,9 @@ On macOS, use <kbd>Cmd</kbd> in place of <kbd>Ctrl</kbd>.
 
 ## Limitations
 
-- Nightlite is read-only: it doesn't change data. Editing an MBTiles tileset's metadata is
-  planned.
+- Nightlite changes nothing but an MBTiles tileset's metadata, and that only when you save. Rows,
+  tiles and schemas are read-only.
+- **Save As** isn't available for a tileset's metadata: saving writes it into the file itself.
 - There's no SQL query box, sorting or filtering yet.
 - A copy holds up to a million rows or 16 MB.
 - Files have to be on a disk VS Code's extension host can reach, locally or in a remote window;

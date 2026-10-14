@@ -54,3 +54,32 @@ export function zoomCount(db: DatabaseSync, zoom: number): number {
   };
   return row.n;
 }
+
+/** A row of the metadata table as the editor reads it: values cut at VALUE_LIMIT, with their length. */
+export interface MetadataRow {
+  name: string;
+  value: string;
+  length: number;
+}
+
+/** The metadata table's rows for editing, and what kind of object it is. */
+export function readMetadataRows(db: DatabaseSync): {
+  kind: 'table' | 'view' | null;
+  rows: MetadataRow[];
+} {
+  const kind = kindOf(db, 'metadata');
+  if (kind !== 'table' && kind !== 'view') return { kind: null, rows: [] };
+  const rows = db
+    .prepare(
+      `SELECT CAST(name AS TEXT) AS name, substr(CAST(value AS TEXT), 1, ${VALUE_LIMIT}) AS value, length(CAST(value AS TEXT)) AS length FROM main.metadata LIMIT ${ROW_LIMIT}`,
+    )
+    .all() as { name: string | null; value: string | null; length: number | null }[];
+  return {
+    kind,
+    rows: rows.map((row) => ({
+      name: row.name ?? '',
+      value: row.value ?? '',
+      length: row.length ?? 0,
+    })),
+  };
+}

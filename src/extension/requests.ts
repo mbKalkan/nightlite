@@ -3,6 +3,7 @@ import type {
   FullCell,
   HostToWebviewMessage,
   MbtilesSummary,
+  MetadataState,
   ObjectDetails,
   ObjectInfo,
   RowPage,
@@ -15,6 +16,7 @@ import type {
 import type { TileKey } from '../shared/tiles';
 import type { CopiedText } from './database/rows';
 import { classifyDatabaseError } from './databaseErrors';
+import type { MetadataEdit } from './metadataEdits';
 import { tileExtension } from './tileFile';
 
 /** What answering the webview's questions about tables and views needs from a database. */
@@ -43,6 +45,10 @@ export interface DatabaseBackend {
   tile(key: TileKey): Promise<TileContent | null>;
   /** A tile's bytes as stored, for saving. */
   storedTile(key: TileKey): Promise<Uint8Array | null>;
+  /** An MBTiles file's metadata as the editor shows it, with changes not saved yet. */
+  metadataState(): Promise<MetadataState>;
+  /** Sets a metadata key, or removes it with null; undefined when nothing changes. */
+  editMetadata(name: string, value: string | null, amend?: boolean): MetadataEdit | undefined;
 }
 
 type Post = (message: HostToWebviewMessage) => Thenable<boolean> | Promise<unknown>;
@@ -52,6 +58,8 @@ export interface HostServices {
   writeClipboard(text: string): Thenable<void> | Promise<void>;
   /** Asks where to save a tile, offering `name`, and writes it there. */
   saveTile(name: string, stored: Uint8Array): Thenable<void> | Promise<void>;
+  /** A metadata edit was made: VS Code marks the file changed and can undo it. */
+  onMetadataEdit(edit: MetadataEdit): void;
 }
 
 /** Answers questions about the database's contents; other messages are left to the caller. */
@@ -156,6 +164,19 @@ export async function answer(
         });
       }
       return;
+    case 'metadata':
+      try {
+        await post({ type: 'metadataState', state: await backend.metadataState() });
+      } catch (error) {
+        await post({ type: 'metadataError', ...classifyDatabaseError(error) });
+      }
+      return;
+    case 'editMetadata': {
+      // Every editor of the file hears the new state from the document.
+      const edit = backend.editMetadata(message.name, message.value, message.amend);
+      if (edit) host.onMetadataEdit(edit);
+      return;
+    }
     case 'saveTile': {
       let stored: Uint8Array | null;
       try {
