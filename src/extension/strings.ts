@@ -206,6 +206,8 @@ export function viewerStrings(l10n: Localizer): ViewerStrings {
     viewLimit: l10n.t('Showing the first {0} rows'),
     viewStopped: l10n.t('Stopped: the rows found so far'),
     viewErrorTitle: l10n.t("The rows couldn't be sorted or filtered"),
+    exportRows: l10n.t('Export Rows…'),
+    exportHint: l10n.t('Export the rows as shown to a CSV or JSON file'),
     query: l10n.t('SQL Query'),
     queryStatement: l10n.t('SQL statement'),
     queryPlaceholder: l10n.t('SELECT * FROM table LIMIT 100'),

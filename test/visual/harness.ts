@@ -10,6 +10,7 @@ import {
   zoomCount,
   zoomRange,
 } from '../../src/extension/database/mbtiles';
+import { ExportRun, exportStatement } from '../../src/extension/database/exportRows';
 import { writeMetadata } from '../../src/extension/database/metadataWrite';
 import { QueryRun, type ResultRows } from '../../src/extension/database/query';
 import { TableReader } from '../../src/extension/database/rows';
@@ -25,6 +26,8 @@ import { answer } from '../../src/extension/requests';
 import { viewerStrings } from '../../src/extension/strings';
 import { buildWebviewHtml } from '../../src/extension/webviewHtml';
 import type {
+  ExportFormat,
+  ExportSource,
   HostToWebviewMessage,
   ViewerStrings,
   WebviewToHostMessage,
@@ -110,6 +113,7 @@ export async function openViewer(page: Page, theme: ThemeName) {
   const problems: string[] = [];
   const clipboard: string[] = [];
   const saved: { name: string; bytes: Uint8Array }[] = [];
+  const exported: { source: ExportSource; name: string; csv: string; json: string }[] = [];
   let database:
     | {
         db: DatabaseSync;
@@ -242,6 +246,19 @@ export async function openViewer(page: Page, theme: ThemeName) {
           undoStack.push(edit);
           redoStack.length = 0;
         },
+        // As if the user took the name offered: the file's text, in both formats.
+        exportRows: async (source, name) => {
+          const text = (format: ExportFormat) => {
+            const run = new ExportRun(connection(), exportStatement(source, reader), format);
+            let out = '';
+            for (;;) {
+              const chunk = run.next(1 << 20, 1000);
+              out += chunk.text;
+              if (chunk.done) return out;
+            }
+          };
+          exported.push({ source, name, csv: text('csv'), json: text('json') });
+        },
       },
       queries,
     ),
@@ -332,6 +349,8 @@ export async function openViewer(page: Page, theme: ThemeName) {
     clipboard,
     /** Tiles saved, with the name offered and the bytes written. */
     saved,
+    /** Rows exported: what was asked for, the name offered, and the files' text. */
+    exported,
     /** Delivers a message as if it came from the extension host. */
     async post(message: HostToWebviewMessage) {
       await post(message);

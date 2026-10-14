@@ -10,5 +10,6 @@
   "command.copyAsMarkdown": "Copy as Markdown Table",
   "command.sortAscending": "Sort Ascending",
   "command.sortDescending": "Sort Descending",
-  "command.clearSort": "Clear Sort"
+  "command.clearSort": "Clear Sort",
+  "command.exportRows": "Export Rows…"
 }

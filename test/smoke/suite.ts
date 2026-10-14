@@ -1,6 +1,6 @@
 // Runs inside a real VS Code instance (see scripts/smoke.mjs).
 import * as assert from 'node:assert/strict';
-import { copyFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -8,6 +8,7 @@ import * as vscode from 'vscode';
 import { DatabaseClient } from '../../src/extension/database/client';
 import { connectionTarget } from '../../src/extension/database/target';
 import { DatabaseDocument } from '../../src/extension/databaseDocument';
+import { writeExport } from '../../src/extension/exportFile';
 import { watchDatabase } from '../../src/extension/fileWatcher';
 import { QuerySession } from '../../src/extension/querySession';
 import type { HostToWebviewMessage } from '../../src/shared/protocol';
@@ -315,6 +316,47 @@ const tests: Record<string, () => Promise<void>> = {
     }
   },
 
+  async 'exports rows to a file as they are read, and stops an export'() {
+    const document = new DatabaseDocument(
+      vscode.Uri.file(path.join(FIXTURES, 'sample.sqlite')),
+      WORKER,
+    );
+    const folder = mkdtempSync(path.join(tmpdir(), 'nightlite-export-'));
+    try {
+      const csv = path.join(folder, 'events.csv');
+      const plain = { order: null, search: '', filters: [] };
+      const rows = await writeExport(
+        document.queryConnection(),
+        { table: 'events', view: plain },
+        'csv',
+        csv,
+        () => {},
+        () => false,
+      );
+      assert.equal(rows, 5000);
+      const lines = readFileSync(csv, 'utf8').split('\r\n');
+      assert.equal(lines[0], 'id,at,kind,amount');
+      assert.equal(lines.length, 5002);
+
+      // Stopped after the first chunk, the part written goes.
+      const json = path.join(folder, 'endless.json');
+      let chunks = 0;
+      const stopped = await writeExport(
+        document.queryConnection(),
+        { sql: 'WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n) SELECT i FROM n' },
+        'json',
+        json,
+        () => chunks++,
+        () => chunks > 0,
+      );
+      assert.equal(stopped, undefined);
+      assert.equal(existsSync(json), false);
+    } finally {
+      document.dispose();
+      rmSync(folder, { recursive: true, force: true });
+    }
+  },
+
   async 'opens a WAL database without creating files next to it'() {
     const file = path.join(FIXTURES, 'wal.sqlite');
     const client = new DatabaseClient(WORKER);
@@ -341,6 +383,7 @@ const tests: Record<string, () => Promise<void>> = {
       'nightlite.sortAscending',
       'nightlite.sortDescending',
       'nightlite.clearSort',
+      'nightlite.exportRows',
     ]) {
       assert.ok(commands.includes(command), command);
     }

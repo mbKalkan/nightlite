@@ -238,5 +238,15 @@
   "No rows match.": "Eşleşen satır yok.",
   "Showing the first {0} rows": "İlk {0} satır gösteriliyor",
   "Stopped: the rows found so far": "Durduruldu: şimdiye kadar bulunan satırlar",
-  "The rows couldn't be sorted or filtered": "Satırlar sıralanamadı ya da süzülemedi"
+  "The rows couldn't be sorted or filtered": "Satırlar sıralanamadı ya da süzülemedi",
+  "Export": "Dışa Aktar",
+  "Export Rows": "Satırları Dışa Aktar",
+  "The rows can't be exported over the database itself.": "Satırlar veritabanının kendisinin üzerine aktarılamaz.",
+  "Exporting to {0}": "{0} dosyasına aktarılıyor",
+  "The rows couldn't be exported: {0}": "Satırlar dışa aktarılamadı: {0}",
+  "Open": "Aç",
+  "Show in Folder": "Klasörde Göster",
+  "Exported {0} rows to {1}.": "{0} satır {1} dosyasına aktarıldı.",
+  "Export Rows…": "Satırları Dışa Aktar…",
+  "Export the rows as shown to a CSV or JSON file": "Satırları gösterildiği gibi bir CSV ya da JSON dosyasına aktar"
 }

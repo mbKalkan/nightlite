@@ -10,5 +10,6 @@
   "command.copyAsMarkdown": "Markdown Tablosu Olarak Kopyala",
   "command.sortAscending": "Artan Sırala",
   "command.sortDescending": "Azalan Sırala",
-  "command.clearSort": "Sıralamayı Kaldır"
+  "command.clearSort": "Sıralamayı Kaldır",
+  "command.exportRows": "Satırları Dışa Aktar…"
 }

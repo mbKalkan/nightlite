@@ -3,6 +3,7 @@ import type { HostToWebviewMessage, WebviewToHostMessage } from '../shared/proto
 import { describeFile } from '../shared/sqliteHeader';
 import { DatabaseDocument } from './databaseDocument';
 import { classifyDatabaseError } from './databaseErrors';
+import { exportToFile } from './exportFile';
 import { readFileHeader } from './fileHeader';
 import { saveErrorMessage } from './saveErrors';
 import { watchDatabase } from './fileWatcher';
@@ -51,6 +52,7 @@ export class ViewerProvider implements vscode.CustomEditorProvider<DatabaseDocum
         provider.sortRows('descending'),
       ),
       vscode.commands.registerCommand('nightlite.clearSort', () => provider.sortRows(null)),
+      vscode.commands.registerCommand('nightlite.exportRows', () => provider.exportRows()),
       vscode.commands.registerCommand('nightlite.copyAsMarkdown', () =>
         provider.copySelection(true),
       ),
@@ -172,6 +174,7 @@ export class ViewerProvider implements vscode.CustomEditorProvider<DatabaseDocum
             {
               writeClipboard: (text) => vscode.env.clipboard.writeText(text),
               saveTile: (name, stored) => saveTile(document.uri, name, stored),
+              exportRows: (source, name) => exportToFile(document, source, name),
               onMetadataEdit: (edit) =>
                 this.edits.fire({
                   document,
@@ -257,6 +260,13 @@ export class ViewerProvider implements vscode.CustomEditorProvider<DatabaseDocum
   private openQuery(): void {
     void this.active?.panel.webview.postMessage({
       type: 'openQuery',
+    } satisfies HostToWebviewMessage);
+  }
+
+  /** Asks the rows in view to be exported; the webview knows what they are. */
+  private exportRows(): void {
+    void this.active?.panel.webview.postMessage({
+      type: 'exportRequest',
     } satisfies HostToWebviewMessage);
   }
 

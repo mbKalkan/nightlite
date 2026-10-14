@@ -1,6 +1,8 @@
 import { Worker } from 'node:worker_threads';
 import type {
   CopyRange,
+  ExportFormat,
+  ExportSource,
   FullCell,
   MbtilesSummary,
   ObjectDetails,
@@ -16,6 +18,7 @@ import type { RowView } from '../../shared/rowFilter';
 import type { TileKey } from '../../shared/tiles';
 import type { WorkerCall, WorkerFailure, WorkerResponse } from './messages';
 import type { MetadataRow } from './mbtiles';
+import type { ExportChunk } from './exportRows';
 import type { MetadataChange } from './metadataWrite';
 import type { QueryProgress } from './query';
 import type { CopiedText } from './rows';
@@ -128,6 +131,15 @@ export class DatabaseClient {
   /** Starts a query from the query page: its columns, or why it can't run. */
   queryStart(sql: string): Promise<ObjectInfo> {
     return this.call({ type: 'queryStart', sql }) as Promise<ObjectInfo>;
+  }
+
+  /** Starts reading rows to export, or says why they can't be. */
+  exportStart(source: ExportSource, format: ExportFormat): Promise<void> {
+    return this.call({ type: 'exportStart', source, format }) as Promise<void>;
+  }
+
+  exportStep(bytes: number, ms: number): Promise<ExportChunk> {
+    return this.call({ type: 'exportStep', bytes, ms }) as Promise<ExportChunk>;
   }
 
   /** Starts working out a table's rows sorted or filtered: its columns, or why it can't. */

@@ -95,6 +95,9 @@ window.addEventListener('message', (event: MessageEvent<HostToWebviewMessage>) =
     case 'sortRows':
       shell.sortRows(message.direction);
       break;
+    case 'exportRequest':
+      shell.exportRows();
+      break;
     case 'objectInfo':
     case 'rowCount':
     case 'rowPage':

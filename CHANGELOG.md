@@ -34,6 +34,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cell details show a BLOB that holds an image (PNG, JPEG, WebP, GIF) as the picture, with its
   size in pixels, and one that holds text as the text, JSON indented and colored. **Hex** shows
   the bytes instead, and stays picked for the next BLOBs until you switch back.
+- **Export Rows…**, in the toolbar, the grid's context menu and the Command Palette, writes the
+  rows on screen to a CSV or JSON file you pick: a table's rows as shown, sorted and filtered,
+  or every row a query returns, not only those the grid holds. Values are whole, integers to the
+  last digit and BLOBs as hex; the file is written as the rows are read, with progress and
+  **Cancel**, so memory stays flat even for millions of rows.
 - Sort a table or view by a column, ascending or descending, from the column's header or the
   grid's context menu (**Sort Ascending**, **Sort Descending**, **Clear Sort**).
 - **Search rows** above the grid (<kbd>Ctrl</kbd>+<kbd>F</kbd>) shows the rows with some text in
