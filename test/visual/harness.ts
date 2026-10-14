@@ -104,29 +104,26 @@ export async function openViewer(page: Page, theme: ThemeName) {
     }
     return found;
   };
-  // Playwright passes JSON; a tile's bytes travel as base64 and become bytes again on the page.
-  const post = (message: HostToWebviewMessage) => {
-    const bytes =
-      message.type === 'tileContent' && message.content?.data
-        ? Buffer.from(message.content.data).toString('base64')
-        : null;
-    const data =
-      bytes !== null && message.type === 'tileContent' && message.content
-        ? { ...message, content: { ...message.content, data: null } }
-        : message;
-    return page.evaluate(
-      ([payload, base64]) => {
-        if (base64 !== null) {
-          (payload as { content: { data: Uint8Array } }).content.data = Uint8Array.from(
-            atob(base64),
-            (c) => c.charCodeAt(0),
-          );
-        }
-        window.dispatchEvent(new MessageEvent('message', { data: payload }));
-      },
-      [data, bytes] as const,
-    );
+  // Playwright passes JSON; bytes travel as base64 and become bytes again on the page.
+  const pack = (value: unknown): unknown => {
+    if (value instanceof Uint8Array) return { __bytes: Buffer.from(value).toString('base64') };
+    if (Array.isArray(value)) return value.map(pack);
+    if (value && typeof value === 'object') {
+      return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, pack(item)]));
+    }
+    return value;
   };
+  const post = (message: HostToWebviewMessage) =>
+    page.evaluate((payload) => {
+      const unpack = (value: unknown): unknown => {
+        if (Array.isArray(value)) return value.map(unpack);
+        if (!value || typeof value !== 'object') return value;
+        const bytes = (value as { __bytes?: string }).__bytes;
+        if (typeof bytes === 'string') return Uint8Array.from(atob(bytes), (c) => c.charCodeAt(0));
+        return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, unpack(item)]));
+      };
+      window.dispatchEvent(new MessageEvent('message', { data: unpack(payload) }));
+    }, pack(message));
   const metadata = () => {
     if (!database) throw new Error('No database loaded');
     if (!database.metadata.loaded) database.metadata.setRows(readMetadataRows(database.db));

@@ -316,6 +316,11 @@ export interface ViewerStrings {
   featureId: string;
   noAttributes: string;
   saveTile: string;
+  /** How the cell detail shows a BLOB. */
+  showAs: string;
+  viewImage: string;
+  viewText: string;
+  viewHex: string;
   /** The metadata editor: its note, its rows and what it says about values. */
   metadataHint: string;
   metadataNoTable: string;
@@ -430,6 +435,8 @@ export interface FullCell {
   type: string;
   text: string;
   length: number;
+  /** A BLOB's bytes in full, when they're an image or text the detail can show as such. */
+  bytes?: Uint8Array;
 }
 
 /** A cell's value, answering `cell`. */

@@ -197,5 +197,9 @@
   "The tileset can't be written to: the file or its disk is read-only. Your changes are kept.": "Karo setine yazılamıyor: dosya ya da diski salt okunur. Değişiklikleriniz duruyor.",
   "The disk is full. Your changes are kept.": "Disk dolu. Değişiklikleriniz duruyor.",
   "The tileset couldn't be opened for writing: it was moved, or you may not have permission. Your changes are kept.": "Karo seti yazmak için açılamadı: taşınmış ya da izniniz olmayabilir. Değişiklikleriniz duruyor.",
-  "The metadata couldn't be saved: {0} Your changes are kept.": "Metadata kaydedilemedi: {0} Değişiklikleriniz duruyor."
+  "The metadata couldn't be saved: {0} Your changes are kept.": "Metadata kaydedilemedi: {0} Değişiklikleriniz duruyor.",
+  "Show as": "Gösterim",
+  "Image": "Resim",
+  "Text": "Metin",
+  "Hex": "Hex"
 }

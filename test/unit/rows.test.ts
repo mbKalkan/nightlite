@@ -251,9 +251,31 @@ describe('TableReader.cell', () => {
     expect(reader.cell(3, 18, 2)).toEqual({ type: 'i', text: '9007199254740993', length: 16 });
     expect(reader.cell(2, 18, 2)).toMatchObject({ type: 'f', text: '42.0' });
     expect(reader.cell(17, 18, 2)).toEqual({ type: 'n', text: '', length: 0 });
-    expect(reader.cell(16, 18, 2).text).toMatch(/^89504e47/);
+    const png = reader.cell(16, 18, 2);
+    expect(png.text).toMatch(/^89504e47/);
+    // A picture comes whole, to show as one.
+    expect(png.bytes).toHaveLength(84);
+    expect(reader.cell(13, 18, 2).bytes).toBeUndefined();
     const view = new TableReader(sample, 'album_list');
     expect(view.cell(0, 5, 0)).toEqual({ type: 't', text: 'Pastel Blues', length: 12 });
+  });
+
+  it('reads text kept in a BLOB whole, and other BLOBs only in part', () => {
+    const db = new DatabaseSync(':memory:');
+    try {
+      db.exec('CREATE TABLE t (b BLOB)');
+      const insert = db.prepare('INSERT INTO t VALUES (?)');
+      const json = new TextEncoder().encode(JSON.stringify({ text: 'x'.repeat(10_000) }));
+      insert.run(json);
+      insert.run(new Uint8Array(10_000).fill(7));
+      const reader = new TableReader(db, 't');
+      const text = reader.cell(0, 2, 0);
+      expect(text.bytes).toEqual(json);
+      expect(text.text).toHaveLength(2 * DETAIL_BYTES);
+      expect(reader.cell(1, 2, 0).bytes).toBeUndefined();
+    } finally {
+      db.close();
+    }
   });
 
   it('reads only the first bytes of a big BLOB', () => {

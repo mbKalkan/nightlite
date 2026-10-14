@@ -72,14 +72,19 @@ export function formatJson(text: string): string | undefined {
 /** Bytes per line of a hex dump: eight fit the panel beside the grid. */
 const DUMP_WIDTH = 8;
 
+/** Bytes given as hex, as bytes. */
+export function hexBytes(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length >> 1);
+  for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  return bytes;
+}
+
 /** Bytes given as hex, laid out as hex editors do: offset, bytes, and the printable ones. */
 export function hexDump(hex: string): string {
+  const all = hexBytes(hex);
   const lines: string[] = [];
-  for (let offset = 0; offset * 2 < hex.length; offset += DUMP_WIDTH) {
-    const bytes: number[] = [];
-    for (let i = offset; i < offset + DUMP_WIDTH && i * 2 < hex.length; i++) {
-      bytes.push(parseInt(hex.slice(i * 2, i * 2 + 2), 16));
-    }
+  for (let offset = 0; offset < all.length; offset += DUMP_WIDTH) {
+    const bytes = [...all.subarray(offset, offset + DUMP_WIDTH)];
     const cells = Array.from({ length: DUMP_WIDTH }, (_, i) =>
       i < bytes.length ? bytes[i].toString(16).padStart(2, '0') : '  ',
     );

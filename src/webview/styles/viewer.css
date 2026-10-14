@@ -1865,3 +1865,32 @@ textarea.nl-metadata-value {
 .nl-button-secondary:hover {
   background: var(--vscode-button-secondaryHoverBackground);
 }
+
+/* How the cell detail shows a BLOB: the picture or text it holds, or hex. */
+.nl-detail-views {
+  flex: none;
+  align-self: flex-start;
+  margin: 6px 12px 0;
+}
+
+.nl-detail-image {
+  --nl-check: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+  display: inline-block;
+  max-width: 100%;
+  border: 1px solid var(--nl-border);
+  background:
+    repeating-conic-gradient(var(--nl-check) 0 25%, transparent 0 50%) 0 0 / 16px 16px,
+    var(--vscode-editor-background);
+}
+
+.nl-detail-image img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+/* Icons and other small pictures, larger and pixel for pixel. */
+.nl-detail-image img.nl-pixelated {
+  width: 128px;
+  image-rendering: pixelated;
+}
