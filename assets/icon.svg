@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2c4c69"/>
+      <stop offset="1" stop-color="#111c29"/>
+    </linearGradient>
+    <mask id="crescent">
+      <rect width="128" height="128" fill="#fff"/>
+      <circle cx="104" cy="27" r="15" fill="#000"/>
+    </mask>
+  </defs>
+  <rect width="128" height="128" rx="26" fill="url(#bg)"/>
+  <!-- A database: a dark cylinder with light bands, as Nightlite shows data in a dark theme. -->
+  <path d="M28 36v54c0 6.6 13.4 12 30 12s30-5.4 30-12V36" fill="#1d2c3c" stroke="#cfe2f2" stroke-width="4" stroke-linejoin="round"/>
+  <ellipse cx="58" cy="36" rx="30" ry="12" fill="#26394d" stroke="#cfe2f2" stroke-width="4"/>
+  <path d="M28 54c0 6.6 13.4 12 30 12s30-5.4 30-12" fill="none" stroke="#8fb0c9" stroke-width="4" stroke-linecap="round"/>
+  <path d="M28 72c0 6.6 13.4 12 30 12s30-5.4 30-12" fill="none" stroke="#8fb0c9" stroke-width="4" stroke-linecap="round"/>
+  <!-- Crescent moon, as on Nightdocs. -->
+  <circle cx="96" cy="34" r="17" fill="#ffd27a" mask="url(#crescent)"/>
+</svg>

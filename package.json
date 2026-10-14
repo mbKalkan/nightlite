@@ -2,6 +2,7 @@
   "name": "nightlite",
   "displayName": "%displayName%",
   "description": "%description%",
+  "icon": "assets/icon.png",
   "version": "0.0.1",
   "publisher": "MBKDevStudio",
   "license": "MIT",
@@ -157,6 +158,7 @@
     ]
   },
   "files": [
+    "assets/icon.png",
     "dist/**",
     "l10n/**",
     "package.nls*.json",
@@ -179,6 +181,7 @@
     "fixtures:large": "node scripts/gen-fixtures.mjs --large",
     "corpus": "node scripts/fetch-corpus.mjs",
     "screenshots": "node scripts/build.mjs && node scripts/screenshots.mjs",
+    "icon": "node scripts/render-icon.mjs",
     "package": "vsce package --no-dependencies",
     "vscode:prepublish": "node scripts/build.mjs --production"
   },

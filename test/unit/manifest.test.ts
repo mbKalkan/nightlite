@@ -14,6 +14,8 @@ const manifest = readJson('package.json') as {
   };
   keywords: string[];
   devDependencies: Record<string, string>;
+  icon: string;
+  files: string[];
 };
 
 describe('extension manifest', () => {
@@ -57,6 +59,15 @@ describe('extension manifest', () => {
         expect(nls, `${file} is missing "${key}"`).toHaveProperty([key]);
       }
     }
+  });
+
+  it('ships a PNG icon of at least 128 by 128 pixels', () => {
+    expect(manifest.files).toContain(manifest.icon);
+    const png = readFileSync(manifest.icon);
+    expect(png.subarray(1, 4).toString('ascii')).toBe('PNG');
+    // Width and height are the first fields of the IHDR chunk.
+    expect(png.readUInt32BE(16)).toBeGreaterThanOrEqual(128);
+    expect(png.readUInt32BE(20)).toBeGreaterThanOrEqual(128);
   });
 
   it('keeps the English and Turkish manifest strings in sync', () => {
