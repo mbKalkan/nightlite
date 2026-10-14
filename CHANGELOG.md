@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-14
+
+Point an AI assistant at a place in a database: right-click, copy the reference, paste it into
+the chat.
+
 ### Added
 
 - **Copy Reference** in the right-click menu puts the file's path and the place on the clipboard,
@@ -144,6 +149,7 @@ First preview release: SQLite databases, MBTiles and GeoPackages, read-only, at 
 - Dark, light and high contrast themes, keyboard and screen reader support, and English and
   Turkish.
 
-[Unreleased]: https://github.com/mbKalkan/nightlite/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/mbKalkan/nightlite/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/mbKalkan/nightlite/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/mbKalkan/nightlite/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/mbKalkan/nightlite/releases/tag/v0.1.0
