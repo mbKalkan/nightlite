@@ -26,23 +26,54 @@ async function waitFor<T>(probe: () => T | undefined, timeoutMs = 30_000): Promi
       return value;
     }
     if (Date.now() - start > timeoutMs) {
-      throw new Error('Timed out waiting for condition');
+      throw new Error(`Timed out waiting for condition. ${describeEditors()}`);
     }
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
 }
 
-/** Opens a fixture the way a click in the Explorer does and returns the editor tab's input. */
+/** What the workbench shows, for the message of a failed wait. */
+function describeEditors(): string {
+  const tabs = vscode.window.tabGroups.all.flatMap((group) =>
+    group.tabs.map((tab) => {
+      const input = tab.input as { uri?: vscode.Uri; viewType?: string } | undefined;
+      const kind = input?.constructor?.name ?? typeof input;
+      const uri = input?.uri?.toString() ?? '';
+      return `${tab.isActive ? '*' : ''}${tab.label} [${kind}${input?.viewType ? ` ${input.viewType}` : ''}] ${uri}`;
+    }),
+  );
+  const extension = vscode.extensions.getExtension(EXTENSION_ID);
+  return `Tabs: ${tabs.length ? tabs.join('; ') : 'none'}. Extension ${
+    extension ? (extension.isActive ? 'active' : 'inactive') : 'missing'
+  }.`;
+}
+
+/** Opens a file the way a click in the Explorer does and returns the editor tab's input. */
 async function open(name: string): Promise<vscode.TabInputCustom> {
   const file = path.isAbsolute(name) ? name : path.join(FIXTURES, name);
-  await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(file));
-  return waitFor(() => {
-    const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
-    return tab?.input instanceof vscode.TabInputCustom &&
-      tab.input.uri.path.endsWith(`/${path.basename(file)}`)
-      ? tab.input
-      : undefined;
-  });
+  const uri = vscode.Uri.file(file);
+  const find = () =>
+    vscode.window.tabGroups.all
+      .flatMap((group) => group.tabs)
+      .find((tab) => (tab.input as { uri?: vscode.Uri } | undefined)?.uri?.path === uri.path);
+  // Right after startup the workbench can open a file before it has registered the
+  // extension's editors, in a plain tab with the extension still inactive (Nightdocs CI).
+  // A moment later it opens in the viewer, so close that tab and open the file again.
+  for (let retry = 0; ; retry++) {
+    await vscode.commands.executeCommand('vscode.open', uri);
+    const tab = await waitFor(find);
+    if (tab.input instanceof vscode.TabInputCustom) {
+      return tab.input;
+    }
+    if (retry === 5) {
+      throw new Error(`${path.basename(file)} never opened in the viewer. ${describeEditors()}`);
+    }
+    console.log(
+      `    ${path.basename(file)} opened outside the viewer; retry ${retry + 1}. ${describeEditors()}`,
+    );
+    await vscode.window.tabGroups.close(tab);
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
 }
 
 const tests: Record<string, () => Promise<void>> = {
